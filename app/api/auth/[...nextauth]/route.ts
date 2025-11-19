@@ -5,7 +5,8 @@ import { compare } from 'bcryptjs';
 import { authConfig } from '@/auth.config'; // Importamos la config ligera
 import { Role } from '@prisma/client';
 
-const handler = NextAuth({
+// 1. Inicializamos NextAuth y extraemos 'handlers'
+const { handlers } = NextAuth({
   ...authConfig, // Extendemos la configuración base
   providers: [
     Credentials({
@@ -19,8 +20,10 @@ const handler = NextAuth({
           where: { email: email },
         });
 
+        // Validar que sea ADMIN
         if (!user || user.role !== Role.ADMIN) return null;
 
+        // Validar contraseña
         const passwordMatch = await compare(password, user.password || '');
         
         if (!passwordMatch) return null;
@@ -31,4 +34,5 @@ const handler = NextAuth({
   ],
 });
 
-export { handler as GET, handler as POST };
+// 2. Exportamos los manejadores GET y POST desestructurados
+export const { GET, POST } = handlers;
