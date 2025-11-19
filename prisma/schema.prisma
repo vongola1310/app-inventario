@@ -1,0 +1,66 @@
+// 1. Configuración de la Base de Datos (SQLite)
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL") // Le decimos que busque en el .env
+  relationMode = "prisma"
+}
+
+// 2. Configuración del Cliente de Prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- 3. Nuestras Tablas (Modelos) ---
+
+model User {
+  id    String @id @default(cuid())
+  email String @unique
+  name  String?
+  role  Role   @default(ENGINEER)
+
+  workerId String @unique // <-- ¡AÑADE ESTA LÍNEA!
+
+  password String? // <-- ¡AÑADE ESTA LÍNEA! (La hacemos opcional ?)
+
+  logs  Log[]
+}
+
+model Tool {
+  id     String @id @default(cuid())
+  name   String
+  qrId   String @unique
+  status Status @default(AVAILABLE)
+
+  isCalibrationTool     Boolean  @default(false) // Indica si es una herramienta de verificación/calibración
+  nextCalibrationDate   DateTime? // Fecha de la próxima calibración requerida
+  
+  logs   Log[]
+}
+
+model Log {
+  id          String   @id @default(cuid())
+  type        LogType
+  createdAt   DateTime @default(now())
+  clientJobId String?
+  comments    String?  // <--- ¡NUEVO CAMPO! (Opcional)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id])
+  @@index([userId])
+  @@index([toolId])
+}
+
+// --- 4. Tipos Especiales (Enums) ---
+enum Role {
+  ADMIN
+  ENGINEER
+}
+enum Status {
+  AVAILABLE
+  IN_USE
+}
+enum LogType {
+  CHECK_OUT
+  CHECK_IN
+}
