@@ -8,7 +8,7 @@ async function main() {
   console.log('Iniciando el script de seeding...');
 
   // --- 1. Define los datos de tu Admin ---
-  const adminEmail = 'jua.ramirez@revviy.com';
+  const adminEmail = 'juan.ramirez@revviy.com';
   const adminPassword = 'morocho15'; // <-- ¡Recuerda esta contraseña!
   const adminWorkerId = '33126';
   
