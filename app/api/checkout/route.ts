@@ -4,12 +4,23 @@ import { Status, LogType } from '@prisma/client';
 
 /**
  * API Route: POST /api/checkout
- * ACTUALIZACIÓN: Bloquea el check-out si la calibración está vencida.
+ *
+ * Reglas:
+ * 1. Bloquea si la calibración está vencida o sin fecha.
+ * 2. Bloquea si la herramienta ya está IN_USE.
+ * 3. Requiere aceptación EXPLÍCITA de la carta responsiva.
+ *    Guarda la versión del texto vigente en el Log para auditoría.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { qrId, workerId, clientName } = body;
+    const {
+      qrId,
+      workerId,
+      clientName,
+      responsivaAccepted,
+      responsivaVersion,
+    } = body;
 
     // Validación básica
     if (!qrId || !workerId) {
@@ -18,6 +29,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // --- NUEVO: Validación de Carta Responsiva ---
+    if (responsivaAccepted !== true) {
+      return NextResponse.json(
+        {
+          error:
+            'Debes aceptar la carta responsiva antes de sacar la herramienta',
+        },
+        { status: 400 }
+      );
+    }
+    if (!responsivaVersion || typeof responsivaVersion !== 'string') {
+      return NextResponse.json(
+        { error: 'Falta la versión de la carta responsiva' },
+        { status: 400 }
+      );
+    }
+    // ---------------------------------------------
 
     // 1. Buscar al USUARIO
     const user = await prisma.user.findUnique({
@@ -33,14 +62,13 @@ export async function POST(request: Request) {
     // 2. Buscar la HERRAMIENTA (incluyendo los campos de calibración)
     const tool = await prisma.tool.findUnique({
       where: { qrId: qrId },
-      // Es crucial seleccionar los campos de calibración
       select: {
-          id: true,
-          name: true,
-          status: true,
-          isCalibrationTool: true,
-          nextCalibrationDate: true,
-      }
+        id: true,
+        name: true,
+        status: true,
+        isCalibrationTool: true,
+        nextCalibrationDate: true,
+      },
     });
 
     if (!tool) {
@@ -50,31 +78,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- LÓGICA DE BLOQUEO POR CALIBRACIÓN VENCIDA (CORREGIDA) ---
+    // --- LÓGICA DE BLOQUEO POR CALIBRACIÓN VENCIDA ---
     const currentDate = new Date();
-    // Verificamos si es una herramienta de calibración Y si tiene una fecha
-    const isCalibrationExpired = tool.isCalibrationTool && tool.nextCalibrationDate && new Date(tool.nextCalibrationDate) < currentDate;
+    const isCalibrationExpired =
+      tool.isCalibrationTool &&
+      tool.nextCalibrationDate &&
+      new Date(tool.nextCalibrationDate) < currentDate;
 
     if (isCalibrationExpired) {
-        // La fecha existe y es anterior a hoy.
-        return NextResponse.json(
-            { 
-                error: `BLOQUEADO: La calibración de ${tool.name} está vencida desde ${tool.nextCalibrationDate!.toLocaleDateString('es-MX')}. Debe ir al Laboratorio.`
-            },
-            { status: 403 } // 403 Forbidden
-        );
+      return NextResponse.json(
+        {
+          error: `BLOQUEADO: La calibración de ${tool.name} está vencida desde ${tool.nextCalibrationDate!.toLocaleDateString(
+            'es-MX'
+          )}. Debe ir al Laboratorio.`,
+        },
+        { status: 403 }
+      );
     } else if (tool.isCalibrationTool && !tool.nextCalibrationDate) {
-        // CORRECCIÓN ADICIONAL: Bloquea si es de calibración pero NO TIENE fecha asignada
-        return NextResponse.json(
-            { 
-                error: `BLOQUEADO: ${tool.name} es una herramienta de verificación y no tiene fecha de próxima calibración asignada. Consulta a Administración.`
-            },
-            { status: 403 } // 403 Forbidden
-        );
+      return NextResponse.json(
+        {
+          error: `BLOQUEADO: ${tool.name} es una herramienta de verificación y no tiene fecha de próxima calibración asignada. Consulta a Administración.`,
+        },
+        { status: 403 }
+      );
     }
-    // --------------------------------------------------------
 
-    // 3. Validar estado (Si la herramienta ya está en uso, y no está vencida)
+    // 3. Validar estado actual
     if (tool.status === Status.IN_USE) {
       return NextResponse.json(
         { error: 'Esta herramienta ya está en uso' },
@@ -84,30 +113,31 @@ export async function POST(request: Request) {
 
     // 4. Ejecutar la transacción (Check-Out)
     const [logEntry, updatedTool] = await prisma.$transaction([
-      // A. Crear el Log
       prisma.log.create({
         data: {
           type: LogType.CHECK_OUT,
           clientJobId: clientName,
           userId: user.id,
           toolId: tool.id,
+          // --- NUEVO: Persistir la aceptación de la responsiva ---
+          responsivaAccepted: true,
+          responsivaVersion: responsivaVersion,
         },
       }),
-
-      // B. Actualizar el estado a IN_USE
       prisma.tool.update({
         where: { id: tool.id },
         data: { status: Status.IN_USE },
       }),
     ]);
 
-    // 5. Enviar una respuesta exitosa
-    return NextResponse.json({
-      message: 'Check-out exitoso',
-      tool: updatedTool,
-      log: logEntry,
-    }, { status: 200 });
-
+    return NextResponse.json(
+      {
+        message: 'Check-out exitoso',
+        tool: updatedTool,
+        log: logEntry,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error en el Check-Out:', error);
     return NextResponse.json(

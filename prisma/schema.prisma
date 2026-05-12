@@ -1,7 +1,7 @@
-// 1. Configuración de la Base de Datos (SQLite)
+// 1. Configuración de la Base de Datos (PostgreSQL)
 datasource db {
   provider     = "postgresql"
-  url          = env("DATABASE_URL") // Le decimos que busque en el .env
+  url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
 
@@ -18,11 +18,10 @@ model User {
   name  String?
   role  Role   @default(ENGINEER)
 
-  workerId String @unique // <-- ¡AÑADE ESTA LÍNEA!
+  workerId String  @unique
+  password String?
 
-  password String? // <-- ¡AÑADE ESTA LÍNEA! (La hacemos opcional ?)
-
-  logs  Log[]
+  logs Log[]
 }
 
 model Tool {
@@ -31,10 +30,10 @@ model Tool {
   qrId   String @unique
   status Status @default(AVAILABLE)
 
-  isCalibrationTool     Boolean  @default(false) // Indica si es una herramienta de verificación/calibración
-  nextCalibrationDate   DateTime? // Fecha de la próxima calibración requerida
-  
-  logs   Log[]
+  isCalibrationTool   Boolean   @default(false)
+  nextCalibrationDate DateTime?
+
+  logs Log[]
 }
 
 model Log {
@@ -42,11 +41,20 @@ model Log {
   type        LogType
   createdAt   DateTime @default(now())
   clientJobId String?
-  comments    String?  // <--- ¡NUEVO CAMPO! (Opcional)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  toolId      String
-  tool        Tool     @relation(fields: [toolId], references: [id])
+  comments    String?
+
+  // --- Carta Responsiva (aplica solo a CHECK_OUT) ---
+  // Se guarda la versión del texto vigente al momento del préstamo,
+  // de manera que cualquier cambio futuro al texto legal no afecte
+  // los registros históricos.
+  responsivaAccepted Boolean @default(false)
+  responsivaVersion  String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  toolId String
+  tool   Tool   @relation(fields: [toolId], references: [id])
+
   @@index([userId])
   @@index([toolId])
 }
@@ -56,10 +64,12 @@ enum Role {
   ADMIN
   ENGINEER
 }
+
 enum Status {
   AVAILABLE
   IN_USE
 }
+
 enum LogType {
   CHECK_OUT
   CHECK_IN

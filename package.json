@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prisma:migrate": "dotenv -e .env -- prisma migrate dev",
+    "prisma:generate": "dotenv -e .env -- prisma generate",
+    "prisma:studio": "dotenv -e .env -- prisma studio",
+    "prisma:push": "dotenv -e .env -- prisma db push"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
