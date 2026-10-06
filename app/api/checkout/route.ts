@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { Status, LogType } from '@prisma/client';
+import { addBusinessDays, isBusinessDay } from '@/app/lib/business-days';
 
 /**
  * API Route: POST /api/checkout
  *
  * Reglas:
- * 1. Bloquea si la calibración está vencida o sin fecha.
+ * 1. Bloquea si la calibración está vencida.
  * 2. Bloquea si la herramienta ya está IN_USE.
- * 3. Requiere aceptación EXPLÍCITA de la carta responsiva.
- *    Guarda la versión del texto vigente en el Log para auditoría.
+ * 3. Requiere aceptación de la carta responsiva.
+ * 4. Calcula la fecha esperada de retorno: hoy + 1 día hábil
+ *    (saltando fines de semana y festivos MX).
+ *    Si el ingeniero manda una fecha personalizada, debe ser >= mínima.
  */
 export async function POST(request: Request) {
   try {
@@ -20,6 +23,7 @@ export async function POST(request: Request) {
       clientName,
       responsivaAccepted,
       responsivaVersion,
+      expectedReturnDate, // opcional, formato ISO string
     } = body;
 
     // Validación básica
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- NUEVO: Validación de Carta Responsiva ---
+    // Validación de Carta Responsiva
     if (responsivaAccepted !== true) {
       return NextResponse.json(
         {
@@ -46,9 +50,46 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // --- Cálculo de Fecha Esperada de Retorno ---
+    const today = new Date();
+    const minReturn = addBusinessDays(today, 1); // mínimo: 1 día hábil
+
+    let finalReturnDate: Date;
+    if (expectedReturnDate) {
+      const requested = new Date(expectedReturnDate);
+      if (isNaN(requested.getTime())) {
+        return NextResponse.json(
+          { error: 'Fecha de retorno inválida' },
+          { status: 400 }
+        );
+      }
+      // Debe ser >= mínima
+      if (requested < minReturn) {
+        return NextResponse.json(
+          {
+            error: `La fecha de retorno debe ser igual o posterior a ${minReturn.toLocaleDateString('es-MX')}`,
+          },
+          { status: 400 }
+        );
+      }
+      // Y debe caer en día hábil
+      if (!isBusinessDay(requested)) {
+        return NextResponse.json(
+          {
+            error:
+              'La fecha de retorno debe ser un día hábil (no sábado, domingo ni festivo)',
+          },
+          { status: 400 }
+        );
+      }
+      finalReturnDate = requested;
+    } else {
+      finalReturnDate = minReturn;
+    }
     // ---------------------------------------------
 
-    // 1. Buscar al USUARIO
+    // Buscar al USUARIO
     const user = await prisma.user.findUnique({
       where: { workerId: workerId },
     });
@@ -59,7 +100,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Buscar la HERRAMIENTA (incluyendo los campos de calibración)
+    // Buscar la HERRAMIENTA
     const tool = await prisma.tool.findUnique({
       where: { qrId: qrId },
       select: {
@@ -78,7 +119,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // --- LÓGICA DE BLOQUEO POR CALIBRACIÓN VENCIDA ---
+    // Bloqueo por calibración vencida
     const currentDate = new Date();
     const isCalibrationExpired =
       tool.isCalibrationTool &&
@@ -97,13 +138,13 @@ export async function POST(request: Request) {
     } else if (tool.isCalibrationTool && !tool.nextCalibrationDate) {
       return NextResponse.json(
         {
-          error: `BLOQUEADO: ${tool.name} es una herramienta de verificación y no tiene fecha de próxima calibración asignada. Consulta a Administración.`,
+          error: `BLOQUEADO: ${tool.name} es una herramienta de verificación y no tiene fecha de próxima calibración asignada.`,
         },
         { status: 403 }
       );
     }
 
-    // 3. Validar estado actual
+    // Validar estado actual
     if (tool.status === Status.IN_USE) {
       return NextResponse.json(
         { error: 'Esta herramienta ya está en uso' },
@@ -111,7 +152,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Ejecutar la transacción (Check-Out)
+    // Ejecutar la transacción (Check-Out)
     const [logEntry, updatedTool] = await prisma.$transaction([
       prisma.log.create({
         data: {
@@ -119,9 +160,9 @@ export async function POST(request: Request) {
           clientJobId: clientName,
           userId: user.id,
           toolId: tool.id,
-          // --- NUEVO: Persistir la aceptación de la responsiva ---
           responsivaAccepted: true,
           responsivaVersion: responsivaVersion,
+          expectedReturnDate: finalReturnDate,
         },
       }),
       prisma.tool.update({
@@ -135,6 +176,7 @@ export async function POST(request: Request) {
         message: 'Check-out exitoso',
         tool: updatedTool,
         log: logEntry,
+        expectedReturnDate: finalReturnDate.toISOString(),
       },
       { status: 200 }
     );

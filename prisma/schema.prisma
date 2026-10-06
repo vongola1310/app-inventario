@@ -44,11 +44,14 @@ model Log {
   comments    String?
 
   // --- Carta Responsiva (aplica solo a CHECK_OUT) ---
-  // Se guarda la versión del texto vigente al momento del préstamo,
-  // de manera que cualquier cambio futuro al texto legal no afecte
-  // los registros históricos.
   responsivaAccepted Boolean @default(false)
   responsivaVersion  String?
+
+  // --- Fecha esperada de retorno (aplica solo a CHECK_OUT) ---
+  // Se calcula automáticamente en el momento del préstamo
+  // como "hoy + 1 día hábil" (saltando fines de semana y festivos MX).
+  // Si el ingeniero la extiende, se guarda la fecha extendida.
+  expectedReturnDate DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])

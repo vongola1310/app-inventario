@@ -1,44 +1,52 @@
+import { businessDateKey } from '@/app/lib/dates';
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { Status } from '@prisma/client';
+import { Status, Tool } from '@prisma/client';
 
-// 1. Definición del tipo visual
 type EffectiveStatus = 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION' | 'EXPIRED';
 
-/**
- * Función para calcular el estado efectivo
- */
-function calculateEffectiveStatus(tool: any, currentDate: Date, isAtLab: boolean): EffectiveStatus {
-    if (isAtLab) {
-        return 'IN_CALIBRATION';
-    }
+function calculateEffectiveStatus(
+  tool: Pick<Tool, 'status' | 'isCalibrationTool' | 'nextCalibrationDate'>,
+  currentDate: Date,
+  isAtLab: boolean
+): EffectiveStatus {
+  if (isAtLab) return 'IN_CALIBRATION';
 
-    const isCalibrationExpired = tool.isCalibrationTool && tool.nextCalibrationDate && new Date(tool.nextCalibrationDate) < currentDate;
+  const isCalibrationExpired =
+    tool.isCalibrationTool &&
+    (!tool.nextCalibrationDate || tool.nextCalibrationDate.toISOString().slice(0, 10) < businessDateKey(currentDate));
 
-    if (isCalibrationExpired && tool.status === Status.AVAILABLE) {
-        return 'EXPIRED';
-    }
-    
-    return tool.status as EffectiveStatus; 
+  if (isCalibrationExpired && tool.status === Status.AVAILABLE) {
+    return 'EXPIRED';
+  }
+
+  return tool.status as EffectiveStatus;
 }
 
 export async function GET() {
   try {
+    await requireAdmin();
     const tools = await prisma.tool.findMany({
       select: {
-          id: true,
-          name: true,
-          qrId: true,
-          status: true,
-          isCalibrationTool: true, // Importante
-          nextCalibrationDate: true,
-          logs: {
-              orderBy: { createdAt: 'desc' },
-              take: 1, 
-              include: {
-                  user: { select: { name: true, workerId: true } }, 
-              },
+        id: true,
+        name: true,
+        qrId: true,
+        status: true,
+        isCalibrationTool: true,
+        nextCalibrationDate: true,
+        logs: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            type: true,
+            createdAt: true,
+            clientJobId: true,
+            expectedReturnDate: true,
+            user: { select: { name: true, workerId: true } },
           },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -49,49 +57,58 @@ export async function GET() {
       const lastLog = tool.logs[0];
       const who = lastLog?.user?.name || '---';
       const where = lastLog?.clientJobId || '---';
-      const timestamp = lastLog?.createdAt || null;
-      const isAtLab = tool.status === Status.IN_USE && where.toUpperCase().includes('CALIBRACI');
+      const isAtLab =
+        tool.status === Status.IN_USE &&
+        typeof where === 'string' &&
+        where === 'CALIBRACION';
 
       const effectiveStatus = calculateEffectiveStatus(tool, currentDate, isAtLab);
-      
-      // Objeto base
+      const expectedReturnDateValue: Date | null =
+        tool.status === Status.IN_USE ? (lastLog?.expectedReturnDate ?? null) : null;
+
+      const expectedReturnDate =
+        expectedReturnDateValue instanceof Date ? expectedReturnDateValue.toISOString() : null;
+
+      const isOverdue =
+        tool.status === Status.IN_USE && expectedReturnDateValue instanceof Date
+          ? expectedReturnDateValue.toISOString().slice(0, 10) < businessDateKey(currentDate)
+          : false;
+
       const rowData = {
         id: tool.id,
         name: tool.name,
         qrId: tool.qrId,
-        status: tool.status, 
-        effectiveStatus: effectiveStatus,
-        isCalibrationTool: tool.isCalibrationTool, // <--- ¡AÑADIDO! Enviamos este dato al frontend
-        timestamp: timestamp,
+        status: tool.status,
+        effectiveStatus,
+        isCalibrationTool: tool.isCalibrationTool,
+        timestamp: lastLog?.createdAt || null,
         nextCalibrationDate: tool.nextCalibrationDate?.toISOString() || null,
+        expectedReturnDate,
+        isOverdue,
         who: '---',
         where: '---',
-        isAtLab: isAtLab,
+        isAtLab,
       };
 
-      // Lógica de llenado de datos según estado
       if (isAtLab) {
-          rowData.who = lastLog?.user?.name || 'Admin';
-          rowData.where = 'Laboratorio de Calibración';
+        rowData.who = lastLog?.user?.name || 'Admin';
+        rowData.where = 'Laboratorio de Calibración';
       } else if (tool.status === Status.IN_USE) {
-          rowData.who = who;
-          rowData.where = where;
+        rowData.who = who;
+        rowData.where = where;
       } else {
-          // Disponible o Vencida
-          rowData.who = effectiveStatus === 'EXPIRED' ? 'Requiere Calibración' : (lastLog?.user?.name || '---');
-          rowData.where = 'Showroom';
+        rowData.who =
+          effectiveStatus === 'EXPIRED'
+            ? 'Requiere Calibración'
+            : lastLog?.user?.name || '---';
+        rowData.where = 'Showroom';
       }
 
       return rowData;
     });
 
     return NextResponse.json(dashboardData, { status: 200 });
-
   } catch (error) {
-    console.error('Error al obtener datos del dashboard:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

@@ -1,16 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { RESPONSIVA } from './lib/responsiva';
+import { nextBusinessDate, formatCalendarDate } from './lib/dates';
 
 type StatusMessage = {
   type: 'success' | 'error';
   message: string;
 } | null;
 
+function subscribeToDateChange(onChange: () => void) {
+  const timer = setInterval(onChange, 60_000);
+  return () => clearInterval(timer);
+}
+
 export default function Home() {
-  // --- Estados de React ---
+  // --- Estados ---
   const [scannedQrId, setScannedQrId] = useState<string>('');
   const [clientName, setClientName] = useState<string>('');
   const [workerId, setWorkerId] = useState<string>('');
@@ -18,15 +24,18 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
 
-  // --- Carta Responsiva ---
   const [responsivaAccepted, setResponsivaAccepted] = useState<boolean>(false);
   const [showResponsivaModal, setShowResponsivaModal] = useState<boolean>(false);
 
-  // --- Configuración del Lector QR ---
+  // Fecha esperada de retorno (string YYYY-MM-DD)
+  const [selectedReturnDate, setExpectedReturnDate] = useState('');
+  const minReturnDate = useSyncExternalStore(subscribeToDateChange, () => nextBusinessDate(), () => '');
+  const expectedReturnDate = selectedReturnDate || minReturnDate;
+
+  // --- Lector QR ---
   useEffect(() => {
-    const scannerReaderId = 'qr-reader';
     const qrScanner = new Html5QrcodeScanner(
-      scannerReaderId,
+      'qr-reader',
       { qrbox: { width: 250, height: 250 }, fps: 10 },
       false
     );
@@ -34,19 +43,15 @@ export default function Home() {
     function onScanSuccess(decodedText: string) {
       setScannedQrId(decodedText);
     }
-    function onScanError(_errorMessage: string) {
-      /* no hacer nada */
-    }
+    function onScanError() {}
     qrScanner.render(onScanSuccess, onScanError);
 
     return () => {
-      qrScanner.clear();
+      void qrScanner.clear().catch(console.error);
     };
   }, []);
 
-  // --- Lógica de la API ---
-
-  // Función para manejar el CHECK-OUT
+  // --- CHECK-OUT ---
   const handleCheckOut = async () => {
     if (!scannedQrId || !workerId) {
       setStatusMessage({
@@ -62,39 +67,54 @@ export default function Home() {
       });
       return;
     }
+    if (!expectedReturnDate) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Selecciona la fecha esperada de retorno',
+      });
+      return;
+    }
     setIsLoading(true);
     setStatusMessage(null);
 
-    const response = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        qrId: scannedQrId,
-        workerId: workerId,
-        clientName: clientName,
-        responsivaAccepted: true,
-        responsivaVersion: RESPONSIVA.version,
-      }),
-    });
-
-    const data = await response.json();
-    setIsLoading(false);
-
-    if (response.ok) {
-      setStatusMessage({
-        type: 'success',
-        message: `¡${data.tool.name} sacada con éxito!`,
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qrId: scannedQrId,
+          workerId,
+          clientName,
+          responsivaAccepted: true,
+          responsivaVersion: RESPONSIVA.version,
+          expectedReturnDate,
+        }),
       });
-      setScannedQrId('');
-      setClientName('');
-      setWorkerId('');
-      setResponsivaAccepted(false);
-    } else {
-      setStatusMessage({ type: 'error', message: `Error: ${data.error}` });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setStatusMessage({
+          type: 'success',
+          message: `¡${data.tool.name} sacada con éxito! Fecha límite de devolución: ${formatCalendarDate(data.expectedReturnDate)}`,
+        });
+        setScannedQrId('');
+        setClientName('');
+        setWorkerId('');
+        setResponsivaAccepted(false);
+        // Resetear fecha al mínimo nuevo (por si cruzó la medianoche)
+        setExpectedReturnDate(nextBusinessDate());
+      } else {
+        setStatusMessage({ type: 'error', message: `Error: ${data.error}` });
+      }
+    } catch {
+      setStatusMessage({ type: 'error', message: 'No se pudo completar la operación. Comprueba la conexión y el estado de la herramienta antes de reintentar.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Función para manejar el CHECK-IN
+  // --- CHECK-IN ---
   const handleCheckIn = async () => {
     if (!scannedQrId || !workerId) {
       setStatusMessage({
@@ -106,36 +126,39 @@ export default function Home() {
     setIsLoading(true);
     setStatusMessage(null);
 
-    const response = await fetch('/api/checkin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        qrId: scannedQrId,
-        workerId: workerId,
-        comments: comments,
-      }),
-    });
-
-    const data = await response.json();
-    setIsLoading(false);
-
-    if (response.ok) {
-      setStatusMessage({
-        type: 'success',
-        message: `¡${data.tool.name} devuelta con éxito!`,
+    try {
+      const response = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qrId: scannedQrId,
+          workerId,
+          comments,
+        }),
       });
-      setScannedQrId('');
-      setWorkerId('');
-      setComments('');
-    } else {
-      setStatusMessage({ type: 'error', message: `Error: ${data.error}` });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setStatusMessage({
+          type: 'success',
+          message: `¡${data.tool.name} devuelta con éxito!`,
+        });
+        setScannedQrId('');
+        setWorkerId('');
+        setComments('');
+      } else {
+        setStatusMessage({ type: 'error', message: `Error: ${data.error}` });
+      }
+    } catch {
+      setStatusMessage({ type: 'error', message: 'No se pudo completar la operación. Comprueba la conexión y el estado de la herramienta antes de reintentar.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // --- Interfaz de Usuario (JSX + Tailwind) ---
   return (
     <main className="min-h-screen bg-transparent relative overflow-hidden flex items-center justify-center p-4">
-      {/* Efectos de fondo animados */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/20 rounded-full blur-3xl animate-pulse"></div>
         <div
@@ -147,12 +170,9 @@ export default function Home() {
           style={{ animationDelay: '2s' }}
         ></div>
       </div>
-
-      {/* Patrón de cuadrícula sutil */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none"></div>
 
       <div className="relative w-full max-w-3xl z-10">
-        {/* Header Premium */}
         <div className="text-center mb-8">
           <div className="relative inline-block mb-6">
             <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-3xl blur-2xl opacity-50 animate-pulse"></div>
@@ -180,9 +200,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Card Principal Premium */}
         <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
-          {/* Scanner QR Section */}
           <div className="p-6 md:p-8 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-b border-white/10">
             <div className="flex items-center gap-4 mb-6">
               <div className="relative">
@@ -219,46 +237,28 @@ export default function Home() {
             ></div>
           </div>
 
-          {/* Formulario Premium */}
           <div className="p-6 md:p-8 space-y-6">
-            {/* QR Escaneado */}
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide">
-                <svg
-                  className="w-5 h-5 text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
                 Código Detectado
               </label>
-              <div className="relative group">
+              <div className="relative">
                 <input
                   type="text"
                   readOnly
                   value={scannedQrId}
                   placeholder="Esperando escaneo del código QR..."
-                  className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-green-400 transition-all font-mono text-sm backdrop-blur-xl"
+                  className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-green-400 transition-all font-mono text-sm"
                 />
                 {scannedQrId && (
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <span className="text-xs font-bold text-green-400 uppercase">
-                      Detectado
-                    </span>
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
+                    <span className="text-xs font-bold text-green-400 uppercase">Detectado</span>
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* ID del Trabajador */}
             <div className="space-y-3">
               <label
                 htmlFor="workerId"
@@ -278,9 +278,7 @@ export default function Home() {
                   />
                 </svg>
                 ID del Trabajador
-                <span className="ml-auto px-2 py-0.5 bg-red-500/20 text-red-300 text-xs font-bold rounded-full border border-red-400/30">
-                  Requerido
-                </span>
+                <span className="ml-auto px-2 py-0.5 bg-red-500/20 text-red-300 text-xs font-bold rounded-full border border-red-400/30">Requerido</span>
               </label>
               <input
                 id="workerId"
@@ -292,7 +290,6 @@ export default function Home() {
               />
             </div>
 
-            {/* Cliente/Trabajo */}
             <div className="space-y-3">
               <label
                 htmlFor="clientName"
@@ -312,9 +309,7 @@ export default function Home() {
                   />
                 </svg>
                 Cliente / Proyecto
-                <span className="ml-auto text-xs text-white/50 normal-case">
-                  Para check-out
-                </span>
+                <span className="ml-auto text-xs text-white/50 normal-case">Para check-out</span>
               </label>
               <input
                 id="clientName"
@@ -326,10 +321,9 @@ export default function Home() {
               />
             </div>
 
-            {/* Comentarios */}
             <div className="space-y-3">
               <label
-                htmlFor="comments"
+                htmlFor="returnDate"
                 className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide"
               >
                 <svg
@@ -342,13 +336,29 @@ export default function Home() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
+                Fecha Esperada de Retorno
+                <span className="ml-auto text-xs text-white/50 normal-case">Mínimo: 1 día hábil</span>
+              </label>
+              <input
+                id="returnDate"
+                type="date"
+                value={expectedReturnDate}
+                min={minReturnDate}
+                onChange={(e) => setExpectedReturnDate(e.target.value)}
+                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-400 focus:bg-white/10 transition-all"
+              />
+              <p className="text-xs text-cyan-200/60 pl-1">
+                Puedes extender la fecha si necesitas más días, pero no acortarla. Fines de semana y festivos no aplican.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label htmlFor="comments" className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide">
                 Comentarios / Reporte
-                <span className="ml-auto text-xs text-white/50 normal-case">
-                  Para check-in
-                </span>
+                <span className="ml-auto text-xs text-white/50 normal-case">Para check-in</span>
               </label>
               <textarea
                 id="comments"
@@ -360,7 +370,6 @@ export default function Home() {
               />
             </div>
 
-            {/* --- CARTA RESPONSIVA --- */}
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide">
                 <svg
@@ -385,92 +394,46 @@ export default function Home() {
               <div className="rounded-2xl border-2 border-brand-green-light/20 bg-gradient-to-br from-brand-green-light/5 to-brand-green-dark/5 p-5 space-y-4 backdrop-blur-xl">
                 <p className="text-sm text-pink-100/90 leading-relaxed">
                   <span className="font-bold text-white">Aviso:</span>{' '}
-                  {RESPONSIVA.shortNotice} El registro electrónico de la salida
-                  de la herramienta, vinculado a tu ID de Trabajador, tiene la
-                  misma validez que una carta responsiva firmada físicamente.
+                  {RESPONSIVA.shortNotice} El registro electrónico de la salida de la herramienta, vinculado a tu ID de Trabajador, tiene la misma validez que una carta responsiva firmada físicamente.
                 </p>
-
                 <button
                   type="button"
                   onClick={() => setShowResponsivaModal(true)}
                   className="text-xs font-semibold text-white hover:text-white underline underline-offset-4 transition-colors"
                 >
-                  Leer texto completo de la carta responsiva ({RESPONSIVA.version})
+                  Leer texto completo ({RESPONSIVA.version})
                 </button>
-
-                <label className="flex items-start gap-3 cursor-pointer group">
+                <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={responsivaAccepted}
                     onChange={(e) => setResponsivaAccepted(e.target.checked)}
                     className="mt-1 w-5 h-5 rounded border-2 border-brand-green-light/40 bg-white/5 text-brand-green-light focus:ring-2 focus:ring-brand-green-light focus:ring-offset-0 cursor-pointer accent-brand-green-light"
                   />
-                  <span className="text-sm text-white/90 group-hover:text-white transition-colors">
+                  <span className="text-sm text-white/90">
                     He leído y acepto los términos de la carta responsiva.
-                    Confirmo que me hago responsable de la herramienta durante
-                    el periodo de préstamo.
                   </span>
                 </label>
               </div>
             </div>
-            {/* --- FIN CARTA RESPONSIVA --- */}
 
-            {/* Mensajes de Estado Premium */}
             {statusMessage && (
               <div
-                className={`w-full p-5 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300 border-2 ${
+                className={`w-full p-5 rounded-2xl border-2 ${
                   statusMessage.type === 'success'
                     ? 'bg-green-500/10 border-green-400/30 text-green-300'
                     : 'bg-red-500/10 border-red-400/30 text-red-300'
                 }`}
               >
-                <div className="flex-shrink-0">
-                  {statusMessage.type === 'success' ? (
-                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-lg">{statusMessage.message}</p>
-                </div>
+                <p className="font-bold">{statusMessage.message}</p>
               </div>
             )}
 
-            {/* Botones de Acción Premium */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <button
                 onClick={handleCheckOut}
                 disabled={
-                  isLoading || !scannedQrId || !workerId || !responsivaAccepted
+                  isLoading || !scannedQrId || !workerId || !responsivaAccepted || !expectedReturnDate
                 }
                 className="group relative px-8 py-5 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-2xl font-black text-lg text-white shadow-2xl shadow-brand-green/50 hover:shadow-brand-green/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 overflow-hidden"
               >
@@ -494,7 +457,6 @@ export default function Home() {
                   </span>
                 </div>
               </button>
-
               <button
                 onClick={handleCheckIn}
                 disabled={isLoading || !scannedQrId || !workerId}
@@ -524,7 +486,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Footer Premium */}
         <div className="text-center mt-8">
           <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl rounded-full border border-white/10">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
@@ -535,7 +496,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- MODAL DE TEXTO COMPLETO --- */}
       {showResponsivaModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -548,22 +508,9 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setShowResponsivaModal(false)}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all"
-              aria-label="Cerrar"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              ✕
             </button>
 
             <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-brand-green-light mb-2">
