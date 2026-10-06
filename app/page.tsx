@@ -134,16 +134,16 @@ export default function Home() {
 
   // --- Interfaz de Usuario (JSX + Tailwind) ---
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden flex items-center justify-center p-4">
+    <main className="min-h-screen bg-transparent relative overflow-hidden flex items-center justify-center p-4">
       {/* Efectos de fondo animados */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/20 rounded-full blur-3xl animate-pulse"></div>
         <div
-          className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"
+          className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-green-dark/20 rounded-full blur-3xl animate-pulse"
           style={{ animationDelay: '1s' }}
         ></div>
         <div
-          className="absolute top-1/2 left-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse"
+          className="absolute top-1/2 left-1/2 w-96 h-96 bg-brand-green-light/10 rounded-full blur-3xl animate-pulse"
           style={{ animationDelay: '2s' }}
         ></div>
       </div>
@@ -155,8 +155,8 @@ export default function Home() {
         {/* Header Premium */}
         <div className="text-center mb-8">
           <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl blur-2xl opacity-50 animate-pulse"></div>
-            <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-3xl blur-2xl opacity-50 animate-pulse"></div>
+            <div className="relative w-20 h-20 bg-gradient-to-br from-brand-green via-brand-green-dark to-brand-green-light rounded-3xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
               <svg
                 className="w-10 h-10 text-white"
                 fill="none"
@@ -172,10 +172,10 @@ export default function Home() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 mb-3 tracking-tight">
+          <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-brand-green-light to-white mb-3 tracking-tight">
             Control de Herramientas
           </h1>
-          <p className="text-blue-200/80 text-lg md:text-xl font-medium">
+          <p className="text-white/80 text-lg md:text-xl font-medium">
             Sistema de Gestión Inteligente
           </p>
         </div>
@@ -186,10 +186,10 @@ export default function Home() {
           <div className="p-6 md:p-8 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-b border-white/10">
             <div className="flex items-center gap-4 mb-6">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur-lg opacity-50"></div>
-                <div className="relative w-12 h-12 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-xl flex items-center justify-center border border-blue-400/30">
+                <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-xl blur-lg opacity-50"></div>
+                <div className="relative w-12 h-12 bg-gradient-to-br from-brand-green/30 to-brand-green-dark/30 rounded-xl flex items-center justify-center border border-brand-green/30">
                   <svg
-                    className="w-6 h-6 text-blue-300"
+                    className="w-6 h-6 text-brand-green-light"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -207,14 +207,14 @@ export default function Home() {
                 <h2 className="text-xl md:text-2xl font-bold text-white">
                   Escanear Código QR
                 </h2>
-                <p className="text-blue-200/60 text-sm mt-1">
+                <p className="text-white/60 text-sm mt-1">
                   Apunta la cámara al código de la herramienta
                 </p>
               </div>
             </div>
             <div
               id="qr-reader"
-              className="rounded-2xl overflow-hidden shadow-2xl border-2 border-blue-400/30"
+              className="rounded-2xl overflow-hidden shadow-2xl border-2 border-brand-green/30"
               style={{ minHeight: '300px' }}
             ></div>
           </div>
@@ -265,7 +265,7 @@ export default function Home() {
                 className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide"
               >
                 <svg
-                  className="w-5 h-5 text-blue-400"
+                  className="w-5 h-5 text-brand-green"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -288,7 +288,7 @@ export default function Home() {
                 value={workerId}
                 onChange={(e) => setWorkerId(e.target.value)}
                 placeholder="Ejemplo: EMP-123 o E-456"
-                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-blue-400 focus:bg-white/10 transition-all backdrop-blur-xl"
+                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-brand-green focus:bg-white/10 transition-all backdrop-blur-xl"
               />
             </div>
 
@@ -299,7 +299,7 @@ export default function Home() {
                 className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide"
               >
                 <svg
-                  className="w-5 h-5 text-purple-400"
+                  className="w-5 h-5 text-brand-green-dark"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -322,7 +322,7 @@ export default function Home() {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Ejemplo: Cliente ACME, Obra 501"
-                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-purple-400 focus:bg-white/10 transition-all backdrop-blur-xl"
+                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-brand-green-dark focus:bg-white/10 transition-all backdrop-blur-xl"
               />
             </div>
 
@@ -333,7 +333,7 @@ export default function Home() {
                 className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide"
               >
                 <svg
-                  className="w-5 h-5 text-amber-400"
+                  className="w-5 h-5 text-brand-green-light"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -355,7 +355,7 @@ export default function Home() {
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
                 placeholder="Ejemplo: Herramienta sucia, broca desgastada, falla detectada..."
-                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-amber-400 focus:bg-white/10 transition-all backdrop-blur-xl resize-none"
+                className="w-full px-5 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-brand-green-light focus:bg-white/10 transition-all backdrop-blur-xl resize-none"
                 rows={3}
               />
             </div>
@@ -364,7 +364,7 @@ export default function Home() {
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm font-bold text-white/90 uppercase tracking-wide">
                 <svg
-                  className="w-5 h-5 text-pink-400"
+                  className="w-5 h-5 text-brand-green-light"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -377,14 +377,14 @@ export default function Home() {
                   />
                 </svg>
                 Carta Responsiva
-                <span className="ml-auto px-2 py-0.5 bg-pink-500/20 text-pink-300 text-xs font-bold rounded-full border border-pink-400/30">
+                <span className="ml-auto px-2 py-0.5 bg-brand-green-light/20 text-white text-xs font-bold rounded-full border border-brand-green-light/30">
                   Obligatorio para sacar
                 </span>
               </label>
 
-              <div className="rounded-2xl border-2 border-pink-400/20 bg-gradient-to-br from-pink-500/5 to-purple-500/5 p-5 space-y-4 backdrop-blur-xl">
+              <div className="rounded-2xl border-2 border-brand-green-light/20 bg-gradient-to-br from-brand-green-light/5 to-brand-green-dark/5 p-5 space-y-4 backdrop-blur-xl">
                 <p className="text-sm text-pink-100/90 leading-relaxed">
-                  <span className="font-bold text-pink-300">Aviso:</span>{' '}
+                  <span className="font-bold text-white">Aviso:</span>{' '}
                   {RESPONSIVA.shortNotice} El registro electrónico de la salida
                   de la herramienta, vinculado a tu ID de Trabajador, tiene la
                   misma validez que una carta responsiva firmada físicamente.
@@ -393,7 +393,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowResponsivaModal(true)}
-                  className="text-xs font-semibold text-pink-300 hover:text-pink-200 underline underline-offset-4 transition-colors"
+                  className="text-xs font-semibold text-white hover:text-white underline underline-offset-4 transition-colors"
                 >
                   Leer texto completo de la carta responsiva ({RESPONSIVA.version})
                 </button>
@@ -403,7 +403,7 @@ export default function Home() {
                     type="checkbox"
                     checked={responsivaAccepted}
                     onChange={(e) => setResponsivaAccepted(e.target.checked)}
-                    className="mt-1 w-5 h-5 rounded border-2 border-pink-400/40 bg-white/5 text-pink-500 focus:ring-2 focus:ring-pink-400 focus:ring-offset-0 cursor-pointer accent-pink-500"
+                    className="mt-1 w-5 h-5 rounded border-2 border-brand-green-light/40 bg-white/5 text-brand-green-light focus:ring-2 focus:ring-brand-green-light focus:ring-offset-0 cursor-pointer accent-brand-green-light"
                   />
                   <span className="text-sm text-white/90 group-hover:text-white transition-colors">
                     He leído y acepto los términos de la carta responsiva.
@@ -472,9 +472,9 @@ export default function Home() {
                 disabled={
                   isLoading || !scannedQrId || !workerId || !responsivaAccepted
                 }
-                className="group relative px-8 py-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl font-black text-lg text-white shadow-2xl shadow-blue-500/50 hover:shadow-blue-500/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 overflow-hidden"
+                className="group relative px-8 py-5 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-2xl font-black text-lg text-white shadow-2xl shadow-brand-green/50 hover:shadow-brand-green/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-light opacity-0 group-hover:opacity-30 transition-opacity"></div>
                 <div className="relative flex flex-col items-center gap-2">
                   <svg
                     className="w-8 h-8"
@@ -498,9 +498,9 @@ export default function Home() {
               <button
                 onClick={handleCheckIn}
                 disabled={isLoading || !scannedQrId || !workerId}
-                className="group relative px-8 py-5 bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl font-black text-lg text-white shadow-2xl shadow-green-500/50 hover:shadow-green-500/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 overflow-hidden"
+                className="group relative px-8 py-5 bg-gradient-to-r from-green-600 to-brand-green-dark rounded-2xl font-black text-lg text-white shadow-2xl shadow-green-500/50 hover:shadow-green-500/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-brand-green-light opacity-0 group-hover:opacity-30 transition-opacity"></div>
                 <div className="relative flex flex-col items-center gap-2">
                   <svg
                     className="w-8 h-8"
@@ -528,7 +528,7 @@ export default function Home() {
         <div className="text-center mt-8">
           <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-xl rounded-full border border-white/10">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
-            <p className="text-blue-200/80 text-sm font-semibold">
+            <p className="text-white/80 text-sm font-semibold">
               Sistema v3.1 • Carta Responsiva Digital
             </p>
           </div>
@@ -542,7 +542,7 @@ export default function Home() {
           onClick={() => setShowResponsivaModal(false)}
         >
           <div
-            className="relative max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-gradient-to-br from-slate-900 to-purple-950 border-2 border-pink-400/30 rounded-3xl shadow-2xl p-8"
+            className="relative max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-black/40 backdrop-blur-3xl border-2 border-brand-green-light/30 rounded-3xl shadow-2xl p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -566,10 +566,10 @@ export default function Home() {
               </svg>
             </button>
 
-            <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-200 to-purple-200 mb-2">
+            <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-brand-green-light mb-2">
               {RESPONSIVA.title}
             </h3>
-            <p className="text-xs text-pink-300/70 mb-6 font-mono">
+            <p className="text-xs text-white/70 mb-6 font-mono">
               Versión {RESPONSIVA.version} · Vigente desde {RESPONSIVA.effectiveDate}
             </p>
             <div className="text-sm text-white/85 leading-relaxed whitespace-pre-line">

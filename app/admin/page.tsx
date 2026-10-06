@@ -206,18 +206,19 @@ export default function AdminPage() {
   const availableTools = dashboardData.filter(
     (t) => t.status === "AVAILABLE"
   ).length;
-  const inUseTools = dashboardData.filter((t) => t.status === "IN_USE").length;
+  const inUseTools = dashboardData.filter((t) => t.effectiveStatus === "IN_USE").length;
+  const inCalibrationTools = dashboardData.filter((t) => t.effectiveStatus === "IN_CALIBRATION").length;
   const totalTools = dashboardData.length;
 
   // --- Renderizado de la Interfaz ---
   return (
     <>
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden">
+      <main className="min-h-screen bg-transparent text-white relative overflow-hidden">
         {/* Fondos animados y Patrón de grid */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/20 rounded-full blur-3xl animate-pulse"></div>
           <div
-            className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"
+            className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-green-dark/20 rounded-full blur-3xl animate-pulse"
             style={{ animationDelay: "1s" }}
           ></div>
         </div>
@@ -231,8 +232,8 @@ export default function AdminPage() {
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                 <div className="flex items-center gap-5">
                   <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse"></div>
-                    <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
+                    <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-2xl blur-xl opacity-50 animate-pulse"></div>
+                    <div className="relative w-16 h-16 bg-gradient-to-br from-brand-green via-brand-green-dark to-brand-green-light rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
                       <svg
                         className="w-8 h-8 text-white"
                         fill="none"
@@ -249,12 +250,12 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 tracking-tight">
+                    <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-brand-green-light to-white tracking-tight">
                       Panel de Control
                     </h1>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <p className="text-blue-200/80 flex items-center gap-2 font-medium">
+                      <p className="text-white/80 flex items-center gap-2 font-medium">
                         <svg
                           className="w-4 h-4"
                           fill="none"
@@ -277,9 +278,9 @@ export default function AdminPage() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => setIsUserModalOpen(true)}
-                    className="group relative px-5 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/50 hover:shadow-emerald-500/80 hover:scale-105 transition-all duration-300 overflow-hidden"
+                    className="group relative px-5 py-3 bg-gradient-to-r from-brand-green-dark to-green-600 text-white font-bold rounded-xl shadow-lg shadow-brand-green/50 hover:shadow-brand-green/80 hover:scale-105 transition-all duration-300 overflow-hidden"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-green-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-brand-green-light to-green-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
                     <div className="relative flex items-center gap-2">
                       <svg
                         className="w-5 h-5"
@@ -300,51 +301,73 @@ export default function AdminPage() {
 
                   <button
                     onClick={() => setIsToolModalOpen(true)}
-                    className="group relative px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/50 hover:shadow-blue-500/80 hover:scale-105 transition-all duration-300 overflow-hidden"
+                    className="group relative px-5 py-3 w-full sm:w-auto bg-gradient-to-r from-brand-green to-brand-green-dark text-white text-sm font-bold rounded-xl shadow-lg shadow-brand-green/30 hover:shadow-brand-green/50 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-white/10"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
-                    <div className="relative flex items-center gap-2">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <div className="relative flex items-center justify-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                       Nueva Herramienta
                     </div>
                   </button>
 
-                  <Link href="/admin/inventory">
-                    <button className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-md shadow hover:bg-purple-700">
-                      Ver Inventario Completo
+                  <Link href="/admin/inventory" className="w-full sm:w-auto block">
+                    <button className="group relative px-5 py-3 w-full bg-white/5 text-white text-sm font-bold rounded-xl shadow-lg shadow-black/20 hover:bg-white/10 hover:shadow-white/5 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-white/20">
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="relative flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5 text-brand-green-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        Ver Inventario
+                      </div>
+                    </button>
+                  </Link>
+                  
+                  <Link href="/admin/calendar" className="w-full sm:w-auto block">
+                    <button className="group relative px-5 py-3 w-full bg-blue-500/10 text-blue-100 text-sm font-bold rounded-xl shadow-lg shadow-blue-500/10 hover:bg-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-blue-500/30">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="relative flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Ver Calendario
+                      </div>
+                    </button>
+                  </Link>
+
+                  <Link href="/admin/reports" className="w-full sm:w-auto block">
+                    <button className="group relative px-5 py-3 w-full bg-purple-500/10 text-purple-100 text-sm font-bold rounded-xl shadow-lg shadow-purple-500/10 hover:bg-purple-500/20 hover:shadow-purple-500/30 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-purple-500/30">
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/10 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="relative flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Aprovechamiento
+                      </div>
+                    </button>
+                  </Link>
+
+                  <Link href="/admin/users" className="w-full sm:w-auto block">
+                    <button className="group relative px-5 py-3 w-full bg-cyan-500/10 text-cyan-100 text-sm font-bold rounded-xl shadow-lg shadow-cyan-500/10 hover:bg-cyan-500/20 hover:shadow-cyan-500/30 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-cyan-500/30">
+                      <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-cyan-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="relative flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        Ver Usuarios
+                      </div>
                     </button>
                   </Link>
 
                   <button
                     onClick={() => signOut({ callbackUrl: "/login" })}
-                    className="group relative px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/50 hover:shadow-red-500/80 hover:scale-105 transition-all duration-300 overflow-hidden"
+                    className="group relative px-5 py-3 w-full sm:w-auto bg-gradient-to-r from-red-600/80 to-rose-600/80 text-white text-sm font-bold rounded-xl shadow-lg shadow-red-500/20 hover:shadow-red-500/40 hover:-translate-y-0.5 hover:scale-105 transition-all duration-300 overflow-hidden border border-red-500/50 hover:from-red-600 hover:to-rose-600"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-rose-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
-                    <div className="relative flex items-center gap-2">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                        />
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <div className="relative flex items-center justify-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
                       Salir
                     </div>
@@ -355,27 +378,27 @@ export default function AdminPage() {
           </header>
 
           {/* --- Tarjetas de Stats --- */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
             {/* Total */}
             <div className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/20 p-6 hover:scale-105 transition-all duration-300 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-green/10 to-brand-green-dark/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-blue-200/70 mb-2 uppercase tracking-wider">
+                  <p className="text-sm font-semibold text-white/70 mb-2 uppercase tracking-wider">
                     Total
                   </p>
                   <p className="text-4xl md:text-5xl font-black text-white mb-1">
                     {totalTools}
                   </p>
-                  <p className="text-xs text-blue-200/60">
+                  <p className="text-xs text-white/60">
                     Herramientas registradas
                   </p>
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl blur-xl opacity-50"></div>
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center border border-blue-400/30">
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-green to-brand-green-dark rounded-2xl blur-xl opacity-50"></div>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-brand-green/20 to-brand-green-dark/20 rounded-2xl flex items-center justify-center border border-brand-green/30">
                     <svg
-                      className="w-8 h-8 text-blue-300"
+                      className="w-8 h-8 text-brand-green-light"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -393,7 +416,7 @@ export default function AdminPage() {
             </div>
             {/* Disponibles */}
             <div className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/20 p-6 hover:scale-105 transition-all duration-300 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-brand-green/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-green-200/70 mb-2 uppercase tracking-wider">
@@ -405,8 +428,8 @@ export default function AdminPage() {
                   <p className="text-xs text-green-200/60">Listas para usar</p>
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl blur-xl opacity-50"></div>
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl flex items-center justify-center border border-green-400/30">
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-brand-green rounded-2xl blur-xl opacity-50"></div>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-green-500/20 to-brand-green/20 rounded-2xl flex items-center justify-center border border-green-400/30">
                     <svg
                       className="w-8 h-8 text-green-300"
                       fill="none"
@@ -426,7 +449,7 @@ export default function AdminPage() {
             </div>
             {/* En Uso */}
             <div className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/20 p-6 hover:scale-105 transition-all duration-300 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-green-light/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-amber-200/70 mb-2 uppercase tracking-wider">
@@ -440,8 +463,8 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl blur-xl opacity-50"></div>
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center border border-amber-400/30">
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-green-light to-orange-500 rounded-2xl blur-xl opacity-50"></div>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-brand-green-light/20 to-orange-500/20 rounded-2xl flex items-center justify-center border border-brand-green-light/30">
                     <svg
                       className="w-8 h-8 text-amber-300"
                       fill="none"
@@ -459,6 +482,41 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+            {/* En Calibración */}
+            <div className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/20 p-6 hover:scale-105 transition-all duration-300 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-cyan-200/70 mb-2 uppercase tracking-wider">
+                    En Calibración
+                  </p>
+                  <p className="text-4xl md:text-5xl font-black text-white mb-1">
+                    {inCalibrationTools}
+                  </p>
+                  <p className="text-xs text-cyan-200/60">
+                    En laboratorio
+                  </p>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl blur-xl opacity-50"></div>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center border border-cyan-400/30">
+                    <svg
+                      className="w-8 h-8 text-cyan-300"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* --- Tablas de Datos --- */}
@@ -467,10 +525,10 @@ export default function AdminPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 md:p-8 border-b border-white/10">
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur-lg opacity-50"></div>
-                  <div className="relative w-12 h-12 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-xl flex items-center justify-center border border-blue-400/30">
+                  <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-xl blur-lg opacity-50"></div>
+                  <div className="relative w-12 h-12 bg-gradient-to-br from-brand-green/30 to-brand-green-dark/30 rounded-xl flex items-center justify-center border border-brand-green/30">
                     <svg
-                      className="w-6 h-6 text-blue-300"
+                      className="w-6 h-6 text-brand-green-light"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -488,7 +546,7 @@ export default function AdminPage() {
                   <h2 className="text-2xl md:text-3xl font-black text-white">
                     Gestión de Herramientas
                   </h2>
-                  <p className="text-blue-200/60 text-sm mt-1">
+                  <p className="text-white/60 text-sm mt-1">
                     Vista completa y historial
                   </p>
                 </div>
@@ -549,7 +607,7 @@ export default function AdminPage() {
                   Estado Actual
                 </span>
                 {activeTab === "current" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-t-full"></div>
                 )}
               </button>
               <button
@@ -577,7 +635,7 @@ export default function AdminPage() {
                   Historial
                 </span>
                 {activeTab === "history" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-t-full"></div>
                 )}
               </button>
             </div>
@@ -589,25 +647,25 @@ export default function AdminPage() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-gradient-to-r from-white/5 to-transparent border-b border-white/10">
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Herramienta
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         QR
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Estado
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Próx. Calibración
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Usuario
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Cliente
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Última Fecha
                       </th>
                     </tr>
@@ -650,7 +708,7 @@ export default function AdminPage() {
                                   ? "bg-green-500/20 text-green-300 border border-green-500/30"
                                   : row.effectiveStatus === "IN_USE"
                                   ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
-                                  : "bg-pink-500/20 text-pink-300 border border-pink-500/30"
+                                  : "bg-brand-green-light/20 text-white border border-brand-green-light/30"
                               }`}
                             >
                               {row.effectiveStatus === "AVAILABLE"
@@ -699,22 +757,22 @@ export default function AdminPage() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-gradient-to-r from-white/5 to-transparent border-b border-white/10">
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Fecha y Hora
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Acción
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Herramienta
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Usuario (ID)
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Cliente
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">
                         Notas / Reporte
                       </th>
                     </tr>
@@ -780,7 +838,7 @@ export default function AdminPage() {
                           </td>
                           <td className="px-6 py-4 text-sm max-w-xs">
                             {row.comments ? (
-                              <span className="text-pink-300 bg-pink-500/10 px-2 py-1 rounded text-xs border border-pink-500/20 whitespace-normal block">
+                              <span className="text-white bg-brand-green-light/10 px-2 py-1 rounded text-xs border border-brand-green-light/20 whitespace-normal block">
                                 {row.comments}
                               </span>
                             ) : (
@@ -830,7 +888,7 @@ export default function AdminPage() {
               value={toolName}
               onChange={(e) => setToolName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             />
           </div>
           <div className="mb-4">
@@ -846,7 +904,7 @@ export default function AdminPage() {
               value={toolQrId}
               onChange={(e) => setToolQrId(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             />
           </div>
 
@@ -861,7 +919,7 @@ export default function AdminPage() {
                   setIsCalibrationTool(e.target.checked);
                   if (!e.target.checked) setNextCalibrationDate("");
                 }}
-                className="w-4 h-4 text-pink-600 bg-gray-700 border-gray-600 rounded focus:ring-pink-500"
+                className="w-4 h-4 text-brand-green bg-gray-700 border-gray-600 rounded focus:ring-brand-green-light"
               />
               <label
                 htmlFor="isCalibrationTool"
@@ -884,7 +942,7 @@ export default function AdminPage() {
                   value={nextCalibrationDate}
                   onChange={(e) => setNextCalibrationDate(e.target.value)}
                   required={isCalibrationTool}
-                  className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-pink-500 focus:border-pink-500"
+                  className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green-light focus:border-brand-green-light"
                 />
               </div>
             )}
@@ -901,7 +959,7 @@ export default function AdminPage() {
             <button
               type="submit"
               disabled={toolLoading}
-              className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-gray-500"
+              className="px-4 py-2 bg-brand-green text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-gray-500"
             >
               {toolLoading ? "Creando..." : "Crear Herramienta"}
             </button>
@@ -941,7 +999,7 @@ export default function AdminPage() {
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             />
           </div>
           <div className="mb-4">
@@ -957,7 +1015,7 @@ export default function AdminPage() {
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             />
           </div>
           <div className="mb-4">
@@ -973,7 +1031,7 @@ export default function AdminPage() {
               value={userWorkerId}
               onChange={(e) => setUserWorkerId(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             />
           </div>
           <div className="mb-4">
@@ -987,7 +1045,7 @@ export default function AdminPage() {
               id="modalUserRole"
               value={userRole}
               onChange={(e) => setUserRole(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
             >
               <option value="ENGINEER">Ingeniero (Sin contraseña)</option>
               <option value="ADMIN">Administrador (Requiere contraseña)</option>
@@ -1007,7 +1065,7 @@ export default function AdminPage() {
                 value={userPassword}
                 onChange={(e) => setUserPassword(e.target.value)}
                 required={userRole === "ADMIN"}
-                className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm bg-slate-700 text-white focus:ring-brand-green focus:border-brand-green"
               />
             </div>
           )}

@@ -3,18 +3,22 @@ import { prisma } from '@/app/lib/prisma';
 import { Status } from '@prisma/client';
 
 // 1. Definición del tipo visual
-type EffectiveStatus = 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION';
+type EffectiveStatus = 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION' | 'EXPIRED';
 
 /**
  * Función para calcular el estado efectivo
  */
-function calculateEffectiveStatus(tool: any, currentDate: Date): EffectiveStatus {
-    // Verifica si la herramienta de calibración ha expirado
-    const isCalibrationExpired = tool.isCalibrationTool && tool.nextCalibrationDate && new Date(tool.nextCalibrationDate) < currentDate;
-
-    if (isCalibrationExpired) {
+function calculateEffectiveStatus(tool: any, currentDate: Date, isAtLab: boolean): EffectiveStatus {
+    if (isAtLab) {
         return 'IN_CALIBRATION';
     }
+
+    const isCalibrationExpired = tool.isCalibrationTool && tool.nextCalibrationDate && new Date(tool.nextCalibrationDate) < currentDate;
+
+    if (isCalibrationExpired && tool.status === Status.AVAILABLE) {
+        return 'EXPIRED';
+    }
+    
     return tool.status as EffectiveStatus; 
 }
 
@@ -43,11 +47,12 @@ export async function GET() {
 
     const dashboardData = tools.map((tool) => {
       const lastLog = tool.logs[0];
-      const effectiveStatus = calculateEffectiveStatus(tool, currentDate);
-      
       const who = lastLog?.user?.name || '---';
       const where = lastLog?.clientJobId || '---';
       const timestamp = lastLog?.createdAt || null;
+      const isAtLab = tool.status === Status.IN_USE && where.toUpperCase().includes('CALIBRACI');
+
+      const effectiveStatus = calculateEffectiveStatus(tool, currentDate, isAtLab);
       
       // Objeto base
       const rowData = {
@@ -61,15 +66,19 @@ export async function GET() {
         nextCalibrationDate: tool.nextCalibrationDate?.toISOString() || null,
         who: '---',
         where: '---',
+        isAtLab: isAtLab,
       };
 
       // Lógica de llenado de datos según estado
-      if (tool.status === Status.IN_USE) {
+      if (isAtLab) {
+          rowData.who = lastLog?.user?.name || 'Admin';
+          rowData.where = 'Laboratorio de Calibración';
+      } else if (tool.status === Status.IN_USE) {
           rowData.who = who;
           rowData.where = where;
       } else {
-          // Disponible o En Calibración
-          rowData.who = effectiveStatus === 'IN_CALIBRATION' ? 'Requiere Calibración' : (lastLog?.user?.name || '---');
+          // Disponible o Vencida
+          rowData.who = effectiveStatus === 'EXPIRED' ? 'Requiere Calibración' : (lastLog?.user?.name || '---');
           rowData.where = 'Showroom';
       }
 

@@ -7,42 +7,59 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Iniciando el script de seeding...');
 
-  // --- 1. Define los datos de tu Admin ---
-  const adminEmail = 'juan.ramirez@revviy.com';
-  const adminPassword = 'morocho15'; // <-- ¡Recuerda esta contraseña!
-  const adminWorkerId = '33126';
-  
-  // Hashear la contraseña
-  const hashedPassword = await hash(adminPassword, 12);
+    // --- 1. Define los datos de tu Admin ---
+    const adminEmail = 'ju4nch01310@revvity.com';
+    const adminPassword = 'NuevaPassword123!'; // <-- ¡Usa esta nueva contraseña para entrar!
+    const adminWorkerId = 'ADMIN-001';
+    
+    // Hashear la contraseña
+    const hashedPassword = await hash(adminPassword, 12);
 
-  // --- 2. Usa "upsert" para crear o actualizar tu Admin ---
-  // "upsert" = "update" (actualizar) o "insert" (insertar).
-  // Es seguro de correr múltiples veces.
-  try {
-    const adminUser = await prisma.user.upsert({
-      // 1. Dónde buscar (campo único)
-      where: { email: adminEmail },
-      
-      // 2. Qué actualizar (si ya existe)
+    // --- 2. Usa "upsert" para crear o actualizar tu Admin ---
+    try {
+      const adminUser = await prisma.user.upsert({
+        where: { email: adminEmail },
+        update: {
+          password: hashedPassword,
+          role: Role.ADMIN,
+          name: 'Juan Admin',
+        },
+        create: {
+          email: adminEmail,
+          password: hashedPassword,
+          role: Role.ADMIN,
+          name: 'Juan Admin',
+          workerId: adminWorkerId,
+        },
+      });
+
+      console.log('¡Éxito! Contraseña de admin actualizada para:', adminEmail);
+
+    // --- Crear un usuario regular (Ingeniero) ---
+    const engineerEmail = 'ingeniero@ejemplo.com';
+    const engineerPassword = 'password123';
+    const engineerWorkerId = 'EMP-001';
+    const hashedEngineerPassword = await hash(engineerPassword, 12);
+
+    const engineerUser = await prisma.user.upsert({
+      where: { email: engineerEmail },
       update: {
-        password: hashedPassword,
-        role: Role.ADMIN,
-        name: 'Administrador Principal',
-        workerId: adminWorkerId,
+        password: hashedEngineerPassword,
+        role: Role.ENGINEER,
+        name: 'Ingeniero de Pruebas',
+        workerId: engineerWorkerId,
       },
-      
-      // 3. Qué crear (si no existe)
       create: {
-        email: adminEmail,
-        password: hashedPassword,
-        role: Role.ADMIN,
-        name: 'Administrador Principal',
-        workerId: adminWorkerId,
+        email: engineerEmail,
+        password: hashedEngineerPassword,
+        role: Role.ENGINEER,
+        name: 'Ingeniero de Pruebas',
+        workerId: engineerWorkerId,
       },
     });
 
-    console.log('¡Éxito! Usuario Admin creado/actualizado:');
-    console.log(adminUser);
+    console.log('¡Éxito! Usuario Ingeniero creado/actualizado:');
+    console.log(engineerUser);
 
   } catch (error) {
     console.error('Error al crear el admin:', error);

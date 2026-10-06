@@ -11,12 +11,13 @@ type InventoryRow = {
   name: string;
   qrId: string;
   status: 'AVAILABLE' | 'IN_USE';
-  effectiveStatus: 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION';
+  effectiveStatus: 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION' | 'EXPIRED';
   isCalibrationTool: boolean;
   who: string | null;
   where: string | null;
   timestamp: string | null;
   nextCalibrationDate: string | null;
+  isAtLab: boolean;
 };
 
 export default function InventoryPage() {
@@ -28,7 +29,7 @@ export default function InventoryPage() {
   
   // Estados de Filtros
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'IN_USE' | 'IN_CALIBRATION' | 'EXPIRED'>('ALL');
 
   // --- Estados del Modal de Renovación ---
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
@@ -36,6 +37,15 @@ export default function InventoryPage() {
   const [newDate, setNewDate] = useState('');
   const [renewLoading, setRenewLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // --- Estados del Modal de Edición ---
+  const [isEditToolModalOpen, setIsEditToolModalOpen] = useState(false);
+  const [editToolName, setEditToolName] = useState('');
+  const [editToolQrId, setEditToolQrId] = useState('');
+  const [editIsCalibrationTool, setEditIsCalibrationTool] = useState(false);
+  const [editNextCalibrationDate, setEditNextCalibrationDate] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editErrorMessage, setEditErrorMessage] = useState('');
 
   // --- Carga de Datos ---
   const fetchTools = async () => {
@@ -55,6 +65,49 @@ export default function InventoryPage() {
     fetchTools();
   }, []);
 
+  // --- Lógica de Edición ---
+  const openEditModal = (tool: InventoryRow) => {
+    setSelectedTool(tool);
+    setEditToolName(tool.name);
+    setEditToolQrId(tool.qrId);
+    setEditIsCalibrationTool(tool.isCalibrationTool);
+    setEditNextCalibrationDate(tool.nextCalibrationDate ? tool.nextCalibrationDate.split('T')[0] : '');
+    setEditErrorMessage('');
+    setIsEditToolModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTool) return;
+    setEditLoading(true);
+    setEditErrorMessage('');
+    
+    try {
+        const response = await fetch(`/api/tools/${selectedTool.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                name: editToolName,
+                qrId: editToolQrId,
+                isCalibrationTool: editIsCalibrationTool,
+                nextCalibrationDate: editIsCalibrationTool && editNextCalibrationDate ? editNextCalibrationDate : null,
+            }),
+        });
+
+        if (response.ok) {
+            await fetchTools();
+            setIsEditToolModalOpen(false);
+            setSelectedTool(null);
+        } else {
+            const data = await response.json();
+            setEditErrorMessage(data.error || 'Error al editar la herramienta.');
+        }
+    } catch (error) {
+        setEditErrorMessage('Error de conexión.');
+    }
+    setEditLoading(false);
+  };
+
   // --- Lógica de Renovación ---
   const openRenewModal = (tool: InventoryRow) => {
     setSelectedTool(tool);
@@ -72,7 +125,11 @@ export default function InventoryPage() {
         const response = await fetch(`/api/tools/${selectedTool.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nextCalibrationDate: newDate }),
+            body: JSON.stringify({ 
+                action: 'RECEIVE_FROM_CALIBRATION',
+                nextCalibrationDate: newDate,
+                adminId: session?.user?.id || ''
+            }),
         });
 
         if (response.ok) {
@@ -93,6 +150,29 @@ export default function InventoryPage() {
     setRenewLoading(false);
   };
 
+  const handleSendToCalibration = async (tool: InventoryRow) => {
+    if (!confirm(`¿Mandar a calibrar la herramienta ${tool.name}?`)) return;
+    try {
+        const response = await fetch(`/api/tools/${tool.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                action: 'SEND_TO_CALIBRATION',
+                adminId: session?.user?.id || ''
+            }),
+        });
+        if (response.ok) {
+            await fetchTools();
+            alert('Herramienta enviada a calibración exitosamente.');
+        } else {
+            alert('Error al enviar a calibrar.');
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Error de conexión.');
+    }
+  };
+
   // --- Lógica de Filtrado ---
   const filteredTools = tools.filter((tool) => {
     const matchesSearch = 
@@ -101,11 +181,7 @@ export default function InventoryPage() {
 
     let matchesStatus = true;
     if (statusFilter !== 'ALL') {
-      if (statusFilter === 'IN_CALIBRATION') {
-         matchesStatus = tool.effectiveStatus === 'IN_CALIBRATION';
-      } else {
-         matchesStatus = tool.effectiveStatus === statusFilter;
-      }
+      matchesStatus = tool.effectiveStatus === statusFilter;
     }
     return matchesSearch && matchesStatus;
   });
@@ -115,7 +191,8 @@ export default function InventoryPage() {
     total: tools.length,
     available: tools.filter(t => t.effectiveStatus === 'AVAILABLE').length,
     inUse: tools.filter(t => t.effectiveStatus === 'IN_USE').length,
-    expired: tools.filter(t => t.effectiveStatus === 'IN_CALIBRATION').length,
+    expired: tools.filter(t => t.effectiveStatus === 'EXPIRED').length,
+    inLab: tools.filter(t => t.effectiveStatus === 'IN_CALIBRATION').length,
   };
 
   // Función para obtener días restantes
@@ -130,12 +207,12 @@ export default function InventoryPage() {
 
   return (
     <>
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden">
+    <main className="min-h-screen bg-transparent text-white relative overflow-hidden">
       {/* Fondos decorativos animados */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
-         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+         <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/20 rounded-full blur-3xl animate-pulse"></div>
+         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-green-dark/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-green-light/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
       
       {/* Grid pattern */}
@@ -149,20 +226,20 @@ export default function InventoryPage() {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="flex items-center gap-5">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse"></div>
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-2xl blur-xl opacity-50 animate-pulse"></div>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-brand-green via-brand-green-dark to-brand-green-light rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-110 transition-transform duration-300">
                     <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 tracking-tight">
+                  <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-brand-green-light to-white tracking-tight">
                     Inventario de Herramientas
                   </h1>
                   <div className="flex items-center gap-2 mt-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <p className="text-blue-200/80 text-sm font-medium">
+                    <p className="text-white/80 text-sm font-medium">
                       Sistema de gestión y control de vigencias
                     </p>
                   </div>
@@ -190,11 +267,11 @@ export default function InventoryPage() {
           <div className="group bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl rounded-2xl shadow-xl border border-white/20 p-5 hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-blue-200/60 uppercase tracking-wider mb-1">Total</p>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-1">Total</p>
                 <p className="text-3xl font-black text-white">{stats.total}</p>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-gradient-to-br from-brand-green/20 to-brand-green-dark/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>
@@ -207,7 +284,7 @@ export default function InventoryPage() {
                 <p className="text-xs font-semibold text-green-200/60 uppercase tracking-wider mb-1">Disponibles</p>
                 <p className="text-3xl font-black text-white">{stats.available}</p>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500/20 to-brand-green/20 rounded-xl flex items-center justify-center">
                 <svg className="w-6 h-6 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -235,7 +312,7 @@ export default function InventoryPage() {
                 <p className="text-xs font-semibold text-red-200/60 uppercase tracking-wider mb-1">Vencidas</p>
                 <p className="text-3xl font-black text-white">{stats.expired}</p>
               </div>
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500/20 to-pink-500/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-500/20 to-brand-green-light/20 rounded-xl flex items-center justify-center">
                 <svg className="w-6 h-6 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
@@ -250,7 +327,7 @@ export default function InventoryPage() {
             {/* Buscador mejorado */}
             <div className="relative w-full lg:w-96">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-blue-300/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-brand-green-light/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -259,12 +336,12 @@ export default function InventoryPage() {
                 placeholder="Buscar herramienta o código QR..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-12 pr-4 py-3 border-2 border-white/10 rounded-xl bg-white/5 text-white placeholder-white/40 focus:border-blue-400/50 focus:bg-white/10 focus:outline-none transition-all backdrop-blur-sm"
+                className="block w-full pl-12 pr-4 py-3 border-2 border-white/10 rounded-xl bg-white/5 text-white placeholder-white/40 focus:border-brand-green/50 focus:bg-white/10 focus:outline-none transition-all backdrop-blur-sm"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-blue-300/50 hover:text-blue-300"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-brand-green-light/50 hover:text-brand-green-light"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -279,7 +356,7 @@ export default function InventoryPage() {
                 onClick={() => setStatusFilter('ALL')} 
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
                   statusFilter === 'ALL' 
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                    ? 'bg-gradient-to-r from-brand-green to-brand-green-dark text-white shadow-lg' 
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -289,7 +366,7 @@ export default function InventoryPage() {
                 onClick={() => setStatusFilter('AVAILABLE')} 
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
                   statusFilter === 'AVAILABLE' 
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg' 
+                    ? 'bg-gradient-to-r from-green-600 to-brand-green-dark text-white shadow-lg' 
                     : 'text-slate-400 hover:text-green-300 hover:bg-white/5'
                 }`}
               >
@@ -306,14 +383,24 @@ export default function InventoryPage() {
                 En Uso ({stats.inUse})
               </button>
               <button 
-                onClick={() => setStatusFilter('IN_CALIBRATION')} 
+                onClick={() => setStatusFilter('EXPIRED')} 
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-                  statusFilter === 'IN_CALIBRATION' 
-                    ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg' 
+                  statusFilter === 'EXPIRED' 
+                    ? 'bg-gradient-to-r from-red-500 to-red-700 text-white shadow-lg' 
                     : 'text-slate-400 hover:text-red-300 hover:bg-white/5'
                 }`}
               >
                 Vencidas ({stats.expired})
+              </button>
+              <button 
+                onClick={() => setStatusFilter('IN_CALIBRATION')} 
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+                  statusFilter === 'IN_CALIBRATION' 
+                    ? 'bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg' 
+                    : 'text-slate-400 hover:text-purple-300 hover:bg-white/5'
+                }`}
+              >
+                En Lab ({stats.inLab})
               </button>
             </div>
           </div>
@@ -325,12 +412,12 @@ export default function InventoryPage() {
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gradient-to-r from-white/5 to-transparent border-b border-white/10">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Herramienta</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Código QR</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Vigencia</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Ubicación</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-blue-200/80 uppercase tracking-wider">Acciones</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Herramienta</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Código QR</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Vigencia</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Ubicación</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
@@ -338,7 +425,7 @@ export default function InventoryPage() {
                   <tr>
                     <td colSpan={6} className="p-12 text-center">
                       <div className="flex flex-col items-center gap-4">
-                        <svg className="w-12 h-12 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-12 h-12 text-brand-green animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <p className="text-slate-400 font-medium">Cargando inventario...</p>
@@ -376,12 +463,20 @@ export default function InventoryPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       );
-                    } else if (row.effectiveStatus === 'IN_CALIBRATION') {
-                      statusClasses = 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse';
+                    } else if (row.effectiveStatus === 'EXPIRED') {
+                      statusClasses = 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.2)]';
                       statusText = 'VENCIDA';
                       statusIcon = (
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      );
+                    } else if (row.effectiveStatus === 'IN_CALIBRATION') {
+                      statusClasses = 'bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]';
+                      statusText = 'En Laboratorio';
+                      statusIcon = (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                       );
                     }
@@ -390,15 +485,15 @@ export default function InventoryPage() {
                       <tr key={row.id} className="hover:bg-white/5 transition-colors group">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg flex items-center justify-center border border-blue-400/30">
-                              <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-10 h-10 bg-gradient-to-br from-brand-green/20 to-brand-green-dark/20 rounded-lg flex items-center justify-center border border-brand-green/30">
+                              <svg className="w-5 h-5 text-brand-green-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                               </svg>
                             </div>
                             <div>
                               <div className="text-sm font-bold text-white">{row.name}</div>
                               {row.isCalibrationTool && (
-                                <div className="text-xs text-pink-400 flex items-center gap-1 mt-1">
+                                <div className="text-xs text-brand-green-light flex items-center gap-1 mt-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                   </svg>
@@ -409,7 +504,7 @@ export default function InventoryPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="font-mono text-sm text-slate-300 bg-slate-900/50 px-3 py-1.5 rounded-lg w-fit border border-slate-700/50">
+                          <div className="font-mono text-sm text-slate-300 bg-black/20/50 px-3 py-1.5 rounded-lg w-fit border border-slate-700/50">
                             {row.qrId}
                           </div>
                         </td>
@@ -427,7 +522,7 @@ export default function InventoryPage() {
                                   ? 'text-red-400' 
                                   : daysLeft && daysLeft <= 7 
                                     ? 'text-yellow-400' 
-                                    : 'text-blue-300'
+                                    : 'text-brand-green-light'
                               }`}>
                                 {new Date(row.nextCalibrationDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
                               </span>
@@ -475,20 +570,31 @@ export default function InventoryPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          {row.isCalibrationTool && (
+                          <div className="flex flex-wrap gap-2">
                             <button 
-                              onClick={() => openRenewModal(row)}
-                              className="group/btn relative px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50 transition-all transform hover:scale-105 active:scale-95 overflow-hidden"
+                              onClick={() => openEditModal(row)}
+                              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all"
                             >
-                              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 opacity-0 group-hover/btn:opacity-30 transition-opacity"></div>
-                              <div className="relative flex items-center gap-2">
-                                <svg className="w-4 h-4 group-hover/btn:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Renovar
-                              </div>
+                              Editar
                             </button>
-                          )}
+                            {row.isCalibrationTool && (
+                              row.isAtLab ? (
+                                <button 
+                                  onClick={() => openRenewModal(row)}
+                                  className="group/btn relative px-3 py-1.5 bg-gradient-to-r from-purple-500 to-purple-700 text-white text-xs font-bold rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all overflow-hidden"
+                                >
+                                  Recibir de Calibración
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleSendToCalibration(row)}
+                                  className="group/btn relative px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all overflow-hidden"
+                                >
+                                  Mandar a Calibrar
+                                </button>
+                              )
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -510,7 +616,7 @@ export default function InventoryPage() {
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                  className="text-xs text-brand-green hover:text-brand-green-light flex items-center gap-1 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -568,16 +674,16 @@ export default function InventoryPage() {
                   {/* Cabecera del modal */}
                   <div className="flex items-center gap-4 mb-6">
                     <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl blur-xl opacity-50"></div>
-                      <div className="relative w-14 h-14 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-2xl flex items-center justify-center border border-blue-400/30">
-                        <svg className="w-7 h-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark rounded-2xl blur-xl opacity-50"></div>
+                      <div className="relative w-14 h-14 bg-gradient-to-br from-brand-green/30 to-brand-green-dark/30 rounded-2xl flex items-center justify-center border border-brand-green/30">
+                        <svg className="w-7 h-7 text-brand-green-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
                     </div>
                     <div>
                       <Dialog.Title as="h3" className="text-2xl font-black text-white">
-                        Renovar Calibración
+                        Registrar Nueva Vigencia
                       </Dialog.Title>
                       <p className="text-sm text-slate-400 mt-1">Actualizar fecha de vigencia</p>
                     </div>
@@ -586,8 +692,8 @@ export default function InventoryPage() {
                   {/* Información de la herramienta */}
                   <div className="mb-6 p-5 bg-gradient-to-br from-white/10 to-white/5 rounded-2xl border border-white/20 backdrop-blur-xl">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-blue-400/30">
-                        <svg className="w-6 h-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-12 h-12 bg-gradient-to-br from-brand-green/20 to-brand-green-dark/20 rounded-xl flex items-center justify-center border border-brand-green/30">
+                        <svg className="w-6 h-6 text-brand-green-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                       </div>
@@ -614,12 +720,12 @@ export default function InventoryPage() {
                   {/* Formulario */}
                   <form onSubmit={handleRenewSubmit} className="space-y-6">
                     <div>
-                      <label className="block text-sm font-bold text-blue-200 mb-3">
+                      <label className="block text-sm font-bold text-white mb-3">
                         Nueva Fecha de Vencimiento
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-blue-300/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-brand-green-light/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </div>
@@ -628,16 +734,16 @@ export default function InventoryPage() {
                           value={newDate} 
                           onChange={(e) => setNewDate(e.target.value)} 
                           required 
-                          className="w-full pl-12 pr-4 py-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-white focus:border-blue-400/50 focus:bg-white/10 focus:outline-none transition-all backdrop-blur-sm"
+                          className="w-full pl-12 pr-4 py-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-white focus:border-brand-green/50 focus:bg-white/10 focus:outline-none transition-all backdrop-blur-sm"
                         />
                       </div>
-                      <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <div className="mt-3 p-3 bg-brand-green/10 border border-brand-green/20 rounded-lg">
                         <div className="flex items-start gap-2">
-                          <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-brand-green flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <p className="text-xs text-blue-300">
-                            Al confirmar, la herramienta volverá automáticamente al estado <span className="font-bold">DISPONIBLE</span> si estaba vencida.
+                          <p className="text-xs text-brand-green-light">
+                            Al confirmar, la herramienta volverá automáticamente al estado <span className="font-bold">DISPONIBLE</span> y lista para usarse.
                           </p>
                         </div>
                       </div>
@@ -655,9 +761,9 @@ export default function InventoryPage() {
                       <button
                         type="submit"
                         disabled={renewLoading || !newDate}
-                        className="flex-1 relative px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 overflow-hidden group"
+                        className="flex-1 relative px-4 py-3 bg-gradient-to-r from-brand-green to-brand-green-dark text-white font-bold rounded-xl shadow-lg shadow-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 overflow-hidden group"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-brand-green to-brand-green-dark opacity-0 group-hover:opacity-30 transition-opacity"></div>
                         <div className="relative flex items-center justify-center gap-2">
                           {renewLoading ? (
                             <>
@@ -676,6 +782,123 @@ export default function InventoryPage() {
                             </>
                           )}
                         </div>
+                      </button>
+                    </div>
+                  </form>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* --- MODAL DE EDICIÓN --- */}
+      <Transition appear show={isEditToolModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsEditToolModalOpen(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-3xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/20 p-8 text-left shadow-2xl transition-all">
+                  
+                  {editErrorMessage && (
+                    <div className="mb-6 p-4 rounded-xl bg-red-500/20 border border-red-500/30">
+                      <p className="text-red-300 font-bold">{editErrorMessage}</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="relative w-14 h-14 bg-gradient-to-br from-blue-500/30 to-blue-700/30 rounded-2xl flex items-center justify-center border border-blue-500/30">
+                      <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <Dialog.Title as="h3" className="text-2xl font-black text-white">
+                        Editar Herramienta
+                      </Dialog.Title>
+                      <p className="text-sm text-slate-400 mt-1">Modifica los detalles</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleEditSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-white mb-2">Nombre</label>
+                      <input 
+                        type="text" 
+                        value={editToolName} 
+                        onChange={(e) => setEditToolName(e.target.value)} 
+                        required 
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-brand-green/50 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-white mb-2">Código QR</label>
+                      <input 
+                        type="text" 
+                        value={editToolQrId} 
+                        onChange={(e) => setEditToolQrId(e.target.value)} 
+                        required 
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-brand-green/50 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        id="editIsCalibration"
+                        checked={editIsCalibrationTool} 
+                        onChange={(e) => setEditIsCalibrationTool(e.target.checked)} 
+                        className="w-5 h-5 rounded border-white/20 bg-white/5"
+                      />
+                      <label htmlFor="editIsCalibration" className="text-sm font-bold text-white">
+                        ¿Requiere calibración?
+                      </label>
+                    </div>
+                    {editIsCalibrationTool && (
+                      <div>
+                        <label className="block text-sm font-bold text-white mb-2">Próxima Fecha de Calibración</label>
+                        <input 
+                          type="date" 
+                          value={editNextCalibrationDate} 
+                          onChange={(e) => setEditNextCalibrationDate(e.target.value)} 
+                          className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-brand-green/50 focus:outline-none"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-all"
+                        onClick={() => setIsEditToolModalOpen(false)}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={editLoading}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold rounded-xl shadow-lg transition-all"
+                      >
+                        {editLoading ? 'Guardando...' : 'Guardar'}
                       </button>
                     </div>
                   </form>
