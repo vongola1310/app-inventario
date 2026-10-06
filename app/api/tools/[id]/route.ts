@@ -1,135 +1,60 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse, ApiError, readBody, requiredText } from '@/app/lib/api-error';
+import { inventoryTransaction } from '@/app/lib/transaction';
+import { businessDateKey, calendarDate, validDateKey } from '@/app/lib/dates';
 
-/**
- * API Route: PATCH /api/tools/[id]
- * Actualiza campos específicos de una herramienta (ej. fecha de calibración).
- * COMPATIBLE CON NEXT.JS 15: 'params' ahora es una Promesa.
- */
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> } 
-) {
+type Context = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: Request, { params }: Context) {
   try {
-    const { id } = await params; 
-    const toolId = id;
-
-    const body = await request.json();
-    const { action, nextCalibrationDate, adminId } = body;
-
-    if (!toolId) {
-      return NextResponse.json({ error: 'Falta el ID de la herramienta' }, { status: 400 });
+    const admin = await requireAdmin();
+    const { id } = await params;
+    const { action, nextCalibrationDate } = await readBody(request);
+    if (action !== undefined && action !== 'SEND_TO_CALIBRATION' && action !== 'RECEIVE_FROM_CALIBRATION') {
+      throw new ApiError(400, 'Acción inválida');
     }
-
-    // Buscamos a un usuario admin por defecto si no nos pasan adminId
-    let userId = adminId;
-    if (!userId) {
-      const defaultAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
-      if (defaultAdmin) userId = defaultAdmin.id;
+    if (action !== 'SEND_TO_CALIBRATION' && (!validDateKey(nextCalibrationDate) || nextCalibrationDate < businessDateKey())) {
+      throw new ApiError(400, 'Se requiere una fecha de calibración válida, igual o posterior a hoy');
     }
-
-    if (action === 'SEND_TO_CALIBRATION') {
-      const [log, updatedTool] = await prisma.$transaction([
-        prisma.log.create({
-          data: {
-            type: 'CHECK_OUT',
-            clientJobId: 'CALIBRACION',
-            userId: userId,
-            toolId: toolId,
-          },
-        }),
-        prisma.tool.update({
-          where: { id: toolId },
-          data: { status: 'IN_USE' },
-        }),
-      ]);
-      return NextResponse.json(updatedTool, { status: 200 });
-    }
-
-    if (action === 'RECEIVE_FROM_CALIBRATION') {
-      if (!nextCalibrationDate) {
-         return NextResponse.json({ error: 'Se requiere una nueva fecha' }, { status: 400 });
+    const updatedTool = await inventoryTransaction(async tx => {
+      const tool = await tx.tool.findUnique({ where: { id }, include: { logs: { orderBy: { createdAt: 'desc' }, take: 1 } } });
+      if (!tool) throw new ApiError(404, 'Herramienta no encontrada');
+      if (!tool.isCalibrationTool) throw new ApiError(400, 'Esta herramienta no requiere calibración');
+      const isAtLab = tool.status === 'IN_USE' && tool.logs[0]?.type === 'CHECK_OUT' && tool.logs[0]?.clientJobId === 'CALIBRACION';
+      if (action === 'SEND_TO_CALIBRATION') {
+        if (tool.status !== 'AVAILABLE') throw new ApiError(409, 'La herramienta está prestada o ya está en calibración');
+        const updated = await tx.tool.update({ where: { id, status: 'AVAILABLE' }, data: { status: 'IN_USE' } });
+        await tx.log.create({ data: { type: 'CHECK_OUT', clientJobId: 'CALIBRACION', userId: admin.id, toolId: id } });
+        return updated;
       }
-      const [log, updatedTool] = await prisma.$transaction([
-        prisma.log.create({
-          data: {
-            type: 'CHECK_IN',
-            clientJobId: 'REGRESO_CALIBRACION',
-            userId: userId,
-            toolId: toolId,
-          },
-        }),
-        prisma.tool.update({
-          where: { id: toolId },
-          data: { 
-            status: 'AVAILABLE',
-            nextCalibrationDate: new Date(nextCalibrationDate)
-          },
-        }),
-      ]);
-      return NextResponse.json(updatedTool, { status: 200 });
-    }
-
-    // Comportamiento anterior por defecto
-    if (!nextCalibrationDate) {
-       return NextResponse.json({ error: 'Se requiere una nueva fecha' }, { status: 400 });
-    }
-
-    const updatedTool = await prisma.tool.update({
-      where: { id: toolId },
-      data: {
-        nextCalibrationDate: new Date(nextCalibrationDate),
-        status: 'AVAILABLE' // Forzamos a AVAILABLE por seguridad
-      },
+      if (action === 'RECEIVE_FROM_CALIBRATION' && !isAtLab) throw new ApiError(409, 'La herramienta no está en el laboratorio');
+      if (action === undefined && tool.status !== 'AVAILABLE') throw new ApiError(409, 'No puedes renovar una herramienta prestada');
+      const updated = await tx.tool.update({ where: { id }, data: {
+        nextCalibrationDate: calendarDate(nextCalibrationDate as string),
+        ...(isAtLab ? { status: 'AVAILABLE' as const } : {}),
+      } });
+      if (isAtLab) await tx.log.create({ data: { type: 'CHECK_IN', clientJobId: 'REGRESO_CALIBRACION', userId: admin.id, toolId: id } });
+      return updated;
     });
-
-    return NextResponse.json(updatedTool, { status: 200 });
-
-  } catch (error) {
-    console.error('Error al actualizar herramienta:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+    return NextResponse.json(updatedTool);
+  } catch (error) { return apiErrorResponse(error); }
 }
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: Request, { params }: Context) {
   try {
+    await requireAdmin();
     const { id } = await params;
-    const body = await request.json();
-    const { name, qrId, isCalibrationTool, nextCalibrationDate } = body;
-
-    const existingTool = await prisma.tool.findUnique({
-      where: { qrId },
-    });
-
-    if (existingTool && existingTool.id !== id) {
-      return NextResponse.json(
-        { error: `Ya existe otra herramienta con el QR ID ${qrId}` },
-        { status: 409 }
-      );
-    }
-
-    const updatedTool = await prisma.tool.update({
-      where: { id },
-      data: {
-        name,
-        qrId,
-        isCalibrationTool: !!isCalibrationTool,
-        nextCalibrationDate: nextCalibrationDate ? new Date(nextCalibrationDate) : null,
-      },
-    });
-
-    return NextResponse.json(updatedTool, { status: 200 });
-  } catch (error) {
-    console.error('Error al actualizar herramienta:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+    const body = await readBody(request);
+    const name = requiredText(body.name, 'nombre');
+    const qrId = requiredText(body.qrId, 'QR');
+    if (typeof body.isCalibrationTool !== 'boolean') throw new ApiError(400, 'Indicador de calibración inválido');
+    if (body.nextCalibrationDate && !validDateKey(body.nextCalibrationDate)) throw new ApiError(400, 'Fecha de calibración inválida');
+    const updatedTool = await prisma.tool.update({ where: { id }, data: {
+      name, qrId, isCalibrationTool: body.isCalibrationTool,
+      nextCalibrationDate: body.isCalibrationTool && validDateKey(body.nextCalibrationDate) ? calendarDate(body.nextCalibrationDate) : null,
+    } });
+    return NextResponse.json(updatedTool);
+  } catch (error) { return apiErrorResponse(error); }
 }

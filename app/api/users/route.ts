@@ -1,3 +1,5 @@
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse, ApiError, readBody, requiredText } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { Role } from '@prisma/client';
@@ -10,8 +12,14 @@ import { hash } from 'bcryptjs';
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    let { name, email, workerId, password, role } = body;
+    await requireAdmin();
+    const body = await readBody(request);
+    const { password, role } = body;
+    const name = requiredText(body.name, 'nombre');
+    const email = requiredText(body.email, 'email');
+    const workerId = requiredText(body.workerId, 'ID de trabajador');
+    if (password !== undefined && password !== null && typeof password !== 'string') throw new ApiError(400, 'Contraseña inválida');
+    if (role !== undefined && role !== 'ADMIN' && role !== 'ENGINEER') throw new ApiError(400, 'Rol inválido');
 
     // 1. Validación básica
     if (!name || !email || !workerId) {
@@ -61,20 +69,17 @@ export async function POST(request: Request) {
       },
     });
     
-    const { password: _, ...userWithoutPassword } = newUser;
+    const userWithoutPassword = { id: newUser.id, name: newUser.name, email: newUser.email, workerId: newUser.workerId, role: newUser.role };
     return NextResponse.json(userWithoutPassword, { status: 201 });
 
   } catch (error) {
-    console.error('Error al crear usuario:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }
 
 export async function GET() {
   try {
+    await requireAdmin();
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -87,10 +92,6 @@ export async function GET() {
     });
     return NextResponse.json(users, { status: 200 });
   } catch (error) {
-    console.error('Error al obtener usuarios:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

@@ -1,5 +1,5 @@
 import { Role } from '@prisma/client'; // Importamos tu Enum de Prisma
-import 'next-auth';
+import type { DefaultSession } from 'next-auth';
 import '@auth/core/jwt';
 
 // 1. Extender el token (JWT)

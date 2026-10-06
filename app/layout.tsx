@@ -21,11 +21,7 @@ export default function RootLayout({
         <AuthProvider>
           {/* Logo Global */}
           <div className="absolute top-4 right-4 md:top-8 md:right-8 z-50 pointer-events-none opacity-90 drop-shadow-2xl">
-            <img 
-              src="/logo.png" 
-              alt="Euroimmun From Revvity" 
-              className="h-8 md:h-12 w-auto object-contain"
-            />
+            <span className="text-sm md:text-lg font-bold text-white">Euroimmun · Revvity</span>
           </div>
           {children}
         </AuthProvider>

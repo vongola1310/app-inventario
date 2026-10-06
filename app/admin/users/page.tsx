@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Dialog, Transition } from '@headlessui/react';
 
@@ -14,7 +13,6 @@ type UserRow = {
 };
 
 export default function UsersPage() {
-  const { data: session } = useSession();
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +91,7 @@ export default function UsersPage() {
             const data = await response.json();
             setEditErrorMessage(data.error || 'Error al editar el usuario.');
         }
-    } catch (error) {
+    } catch {
         setEditErrorMessage('Error de conexión.');
     }
     setEditLoading(false);
@@ -314,7 +312,7 @@ export default function UsersPage() {
                     <label className="block text-sm font-bold text-white mb-2">Rol</label>
                     <select 
                       value={editRole} 
-                      onChange={(e) => setEditRole(e.target.value as any)}
+                      onChange={(e) => setEditRole(e.target.value as UserRow['role'])}
                       className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white focus:border-brand-green/50 focus:outline-none"
                     >
                       <option value="ENGINEER">Ingeniero (ENGINEER)</option>

@@ -132,7 +132,7 @@ export default function ReportsPage() {
             <div className="text-xs text-white/50 text-center">
               Basado en un estimado de {data.totalBusinessDays} días hábiles anuales.
               <br/>
-              * Para registrar calibración, escribe la palabra "CALIBRACION" en el campo 'Cliente/Proyecto' al hacer el Check-Out.
+              * Registra el envío y regreso de calibración desde el Inventario.
             </div>
 
             {/* Tool List */}

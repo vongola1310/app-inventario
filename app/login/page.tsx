@@ -31,7 +31,7 @@ export default function LoginPage() {
       } else if (result?.ok) {
         router.push('/admin');
       }
-    } catch (err) {
+    } catch {
       setIsLoading(false);
       setError('Ocurrió un error inesperado');
     }

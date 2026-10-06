@@ -102,7 +102,7 @@ export default function InventoryPage() {
             const data = await response.json();
             setEditErrorMessage(data.error || 'Error al editar la herramienta.');
         }
-    } catch (error) {
+    } catch {
         setEditErrorMessage('Error de conexión.');
     }
     setEditLoading(false);
@@ -524,7 +524,7 @@ export default function InventoryPage() {
                                     ? 'text-yellow-400' 
                                     : 'text-brand-green-light'
                               }`}>
-                                {new Date(row.nextCalibrationDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                {new Date(row.nextCalibrationDate).toLocaleDateString('es-MX', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
                               </span>
                               {daysLeft !== null && (
                                 <span className={`text-xs ${
@@ -707,7 +707,7 @@ export default function InventoryPage() {
                       <div className="mt-4 pt-4 border-t border-white/10">
                         <p className="text-xs text-slate-500 mb-1">Fecha actual de vencimiento:</p>
                         <p className="text-sm font-bold text-red-400">
-                          {new Date(selectedTool.nextCalibrationDate).toLocaleDateString('es-MX', { 
+                          {new Date(selectedTool.nextCalibrationDate).toLocaleDateString('es-MX', { timeZone: 'UTC',
                             day: '2-digit', 
                             month: 'long', 
                             year: 'numeric' 

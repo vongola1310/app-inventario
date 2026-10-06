@@ -1,11 +1,19 @@
+import { calendarDate, validDateKey } from '@/app/lib/dates';
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse, ApiError, readBody, requiredText } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { Status } from '@prisma/client';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, qrId, isCalibrationTool, nextCalibrationDate } = body; 
+    await requireAdmin();
+    const body = await readBody(request);
+    const name = requiredText(body.name, 'nombre');
+    const qrId = requiredText(body.qrId, 'QR');
+    const { isCalibrationTool, nextCalibrationDate } = body;
+    if (typeof isCalibrationTool !== 'boolean') throw new ApiError(400, 'Indicador de calibración inválido');
+    if (nextCalibrationDate && !validDateKey(nextCalibrationDate)) throw new ApiError(400, 'Fecha de calibración inválida');
 
     // Validación básica
     if (!name || !qrId) {
@@ -14,7 +22,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    
+
     const existingTool = await prisma.tool.findUnique({ where: { qrId } });
     if (existingTool) {
       return NextResponse.json(
@@ -31,17 +39,13 @@ export async function POST(request: Request) {
         status: Status.AVAILABLE,
         // Usamos la propiedad que ya está definida en ToolCreateInput
         isCalibrationTool: !!isCalibrationTool,
-        nextCalibrationDate: nextCalibrationDate ? new Date(nextCalibrationDate) : null,
+        nextCalibrationDate: isCalibrationTool && validDateKey(nextCalibrationDate) ? calendarDate(nextCalibrationDate) : null,
       },
     });
     // ------------------------------------------------
 
     return NextResponse.json(newTool, { status: 201 });
   } catch (error) {
-    console.error('Error al crear herramienta:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

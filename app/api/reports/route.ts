@@ -1,6 +1,8 @@
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { differenceInBusinessDays, differenceInDays, startOfYear, endOfYear, isBefore, isAfter, min, max, parseISO } from 'date-fns';
+import { differenceInBusinessDays, differenceInDays, startOfYear, endOfYear, isBefore, min, max } from 'date-fns';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -8,6 +10,7 @@ export async function GET(request: Request) {
   const year = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
   try {
+    await requireAdmin();
     const tools = await prisma.tool.findMany({
       include: {
         logs: {
@@ -28,7 +31,7 @@ export async function GET(request: Request) {
 
       let currentCheckoutDate: Date | null = null;
       let isCalibration = false;
-      let lastCalibrationCheckout: Date | null = null;
+
 
       const relevantLogs = tool.logs;
 
@@ -37,8 +40,8 @@ export async function GET(request: Request) {
 
         if (log.type === 'CHECK_OUT') {
           currentCheckoutDate = logDate;
-          isCalibration = log.clientJobId?.toUpperCase().includes('CALIBRACI') || false;
-          if (isCalibration) lastCalibrationCheckout = logDate;
+          isCalibration = log.clientJobId === 'CALIBRACION';
+
         } else if (log.type === 'CHECK_IN' && currentCheckoutDate) {
           const start = max([currentCheckoutDate, yearStart]);
           const end = min([logDate, yearEnd]);
@@ -99,7 +102,7 @@ export async function GET(request: Request) {
         }
       }
 
-      let expiredDays = delayInSending || 0;
+      const expiredDays = delayInSending || 0;
       unusedDays = Math.max(0, totalBusinessDays - usedDays - calibrationDays - expiredDays);
 
       return {
@@ -149,7 +152,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ year, totalBusinessDays, summary, tools: reports }, { status: 200 });
 
   } catch (error) {
-    console.error('Error fetching utilization report:', error);
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    return apiErrorResponse(error);
   }
 }

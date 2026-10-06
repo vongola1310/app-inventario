@@ -1,6 +1,8 @@
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse, ApiError, readBody, requiredText } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { Role } from '@prisma/client';
+import { Role, Prisma } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
 export async function PUT(
@@ -8,9 +10,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireAdmin();
     const { id } = await params;
-    const body = await request.json();
-    const { name, email, workerId, role, password } = body;
+    const body = await readBody(request);
+    const { password, role } = body;
+    const name = requiredText(body.name, 'nombre');
+    const email = requiredText(body.email, 'email');
+    const workerId = requiredText(body.workerId, 'ID de trabajador');
+    if (password !== undefined && password !== null && typeof password !== 'string') throw new ApiError(400, 'Contraseña inválida');
+    if (role !== undefined && role !== 'ADMIN' && role !== 'ENGINEER') throw new ApiError(400, 'Rol inválido');
 
     if (!name || !email || !workerId) {
       return NextResponse.json(
@@ -20,6 +28,9 @@ export async function PUT(
     }
 
     const userRole = role === 'ADMIN' ? Role.ADMIN : Role.ENGINEER;
+    const current = await prisma.user.findUnique({ where: { id } });
+    if (!current) throw new ApiError(404, 'Usuario no encontrado');
+    if (userRole === Role.ADMIN && !password && !current.password) throw new ApiError(400, 'Los administradores requieren contraseña');
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -35,7 +46,7 @@ export async function PUT(
       );
     }
 
-    let updateData: any = {
+    const updateData: Prisma.UserUpdateInput = {
       name,
       email,
       workerId,
@@ -61,10 +72,6 @@ export async function PUT(
     return NextResponse.json(updatedUser, { status: 200 });
 
   } catch (error) {
-    console.error('Error al actualizar usuario:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

@@ -1,3 +1,6 @@
+import { businessDateKey, businessDayRange, validDateKey } from '@/app/lib/dates';
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse, ApiError } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { LogType } from '@prisma/client';
@@ -12,35 +15,20 @@ import { LogType } from '@prisma/client';
  */
 export async function GET(request: Request) {
   try {
+    await requireAdmin();
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
 
-    // Calcular rango del día (00:00 a 23:59:59)
-    let startOfDay: Date;
-    let endOfDay: Date;
-
-    if (dateParam) {
-      const [y, m, d] = dateParam.split('-').map(Number);
-      if (!y || !m || !d) {
-        return NextResponse.json(
-          { error: 'Formato de fecha inválido. Usa YYYY-MM-DD' },
-          { status: 400 }
-        );
-      }
-      startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
-      endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
-    } else {
-      const now = new Date();
-      startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    }
+    const date = dateParam ?? businessDateKey();
+    if (!validDateKey(date)) throw new ApiError(400, 'Fecha inválida. Usa YYYY-MM-DD');
+    const { start: startOfDay, end: endOfDay } = businessDayRange(date);
 
     // Buscar todos los logs del día
     const logs = await prisma.log.findMany({
       where: {
         createdAt: {
           gte: startOfDay,
-          lte: endOfDay,
+          lt: endOfDay,
         },
       },
       select: {
@@ -74,7 +62,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        date: startOfDay.toISOString().split('T')[0],
+        date,
         salidas,
         entradas,
         totalSalidas: salidas.length,
@@ -83,10 +71,6 @@ export async function GET(request: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error al obtener agenda:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

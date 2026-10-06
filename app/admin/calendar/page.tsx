@@ -165,7 +165,7 @@ export default function CalendarPage() {
 
               {/* Days Grid */}
               <div className="grid grid-cols-7 gap-2">
-                {days.map((day, i) => {
+                {days.map((day) => {
                   const dateStr = format(day, "yyyy-MM-dd");
                   // Get events for this day
                   const dayEvents = filteredHistory.filter((h) => {

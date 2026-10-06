@@ -1,3 +1,5 @@
+import { requireAdmin } from '@/app/lib/admin-auth';
+import { apiErrorResponse } from '@/app/lib/api-error';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 
@@ -7,6 +9,7 @@ import { prisma } from '@/app/lib/prisma';
  */
 export async function GET() {
   try {
+    await requireAdmin();
     const logs = await prisma.log.findMany({
       // Ordenar por fecha (más reciente primero)
       orderBy: { createdAt: 'desc' },
@@ -41,10 +44,6 @@ export async function GET() {
     return NextResponse.json(historyData, { status: 200 });
 
   } catch (error) {
-    console.error('Error al obtener el historial:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }

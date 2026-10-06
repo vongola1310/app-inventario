@@ -10,10 +10,11 @@
     "prisma:migrate": "dotenv -e .env -- prisma migrate dev",
     "prisma:generate": "dotenv -e .env -- prisma generate",
     "prisma:studio": "dotenv -e .env -- prisma studio",
-    "prisma:push": "dotenv -e .env -- prisma db push"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "prisma:push": "dotenv -e .env -- prisma db push",
+    "postinstall": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/dates.test.ts tests/inventory.test.ts",
+    "check:db": "dotenv -e .env -- tsx scripts/check-database.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",

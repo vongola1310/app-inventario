@@ -231,7 +231,7 @@ export default function AgendaPage() {
                       {item.expectedReturnDate && (
                         <p className="text-cyan-300 text-xs mt-2">
                           Retorno esperado:{" "}
-                          {new Date(item.expectedReturnDate).toLocaleDateString("es-MX")}
+                          {new Date(item.expectedReturnDate).toLocaleDateString("es-MX", { timeZone: "UTC" })}
                         </p>
                       )}
                     </div>
