@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useSyncExternalStore } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { RESPONSIVA } from './lib/responsiva';
 import { nextBusinessDate, formatCalendarDate } from './lib/dates';
@@ -31,23 +31,44 @@ export default function Home() {
   const [selectedReturnDate, setExpectedReturnDate] = useState('');
   const minReturnDate = useSyncExternalStore(subscribeToDateChange, () => nextBusinessDate(), () => '');
   const expectedReturnDate = selectedReturnDate || minReturnDate;
+  const scannerCleanup = useRef<Promise<void>>(Promise.resolve());
 
   // --- Lector QR ---
   useEffect(() => {
-    const qrScanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { qrbox: { width: 250, height: 250 }, fps: 10 },
-      false
-    );
+    let cancelled = false;
+    let qrScanner: Html5QrcodeScanner | undefined;
 
-    function onScanSuccess(decodedText: string) {
-      setScannedQrId(decodedText);
+    async function initializeScanner() {
+      // Ceder un turno cancela el primer montaje de Strict Mode. En Fast
+      // Refresh, esperar también evita abrir otra cámara mientras se cierra.
+      await scannerCleanup.current;
+      if (cancelled) return;
+
+      qrScanner = new Html5QrcodeScanner(
+        'qr-reader',
+        { qrbox: { width: 250, height: 250 }, fps: 10 },
+        false
+      );
+      qrScanner.render((decodedText) => {
+        if (!cancelled) setScannedQrId(decodedText);
+      }, () => {});
     }
-    function onScanError() {}
-    qrScanner.render(onScanSuccess, onScanError);
+
+    void initializeScanner().catch((error: unknown) => {
+      console.error('No se pudo iniciar el lector QR:', error);
+      if (!cancelled) {
+        setStatusMessage({ type: 'error', message: 'No se pudo iniciar el lector QR. Recarga la página para reintentar.' });
+      }
+    });
 
     return () => {
-      void qrScanner.clear().catch(console.error);
+      cancelled = true;
+      if (qrScanner) {
+        scannerCleanup.current = qrScanner.clear();
+        // La promesa conserva el rechazo para impedir una segunda instancia
+        // si la anterior no pudo liberar la cámara.
+        void scannerCleanup.current.catch(console.error);
+      }
     };
   }, []);
 
